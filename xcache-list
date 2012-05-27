@@ -1,0 +1,51 @@
+#!/usr/bin/python
+
+import marshal, os
+from optparse import OptionParser
+
+cache = '/var/lib/xcache/'
+
+def filesize(path):
+	if os.path.exists(path):
+		s = os.path.getsize(path)
+		if s > 1024*1024:
+			return '%.1fM'%(s/1024./1024.)
+		elif s > 1024:
+			return '%.1fK'%(s/1024.)
+		return '%dB'%s
+	return ''
+
+if __name__ == '__main__':
+	parser = OptionParser()
+	parser.add_option('-w', '--web', action="store_true", dest='w', help='show entrys in pretty HTML format')
+	opt, args = parser.parse_args()
+	if opt.w:
+		print '<table border=1>'
+		print '<tr><th>stat</th><th>size</th><th>start</th><th>url</th><th>filename</th></tr>'
+	for i in os.listdir(cache):
+		short = cache + i + '/'
+		m = marshal.load(open(short+'info','rb'))
+		if opt.w:
+			print '<tr>'
+			s = 'error' if m['stat'].startswith('error') else m['stat']
+			c = {'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
+			if s in c:
+				print '<th><font color=%s>%s</font></th>'%(c[s],s)
+			else:
+				print '<th>%s</th>'%s
+			print '<th>%s</th>'%filesize(short+'pcap')
+			print '<th>%s</th>'%m['start']
+			print '<th><a href=%s>%s</a></th>'%(
+					'/xcache/'+i+'/file'+m['ext'],
+					m['ext'][1:] if s == 'cached' else ''
+					)
+			print '<th>%s</th>'%m['path']
+			print '</tr>'
+		else:
+			print m
+			print '\tpcap', filesize(short+'pcap')
+			print '\tfile', filesize(short+'file')
+			print '\t', short+'file'+m['ext']
+	if opt.w:
+		print '</table>'
+

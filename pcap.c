@@ -1,0 +1,69 @@
+#include <pcap.h>
+#include <stdio.h>
+#include <Python.h>
+
+static PyObject *pyfunc, *pymod;
+
+void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
+{
+	u_char *payload, *ip, *tcp, tcpflags;
+	u_int size_ip, size_tcp, totlen;
+	int size_payload, get = 0;
+	u_int dstip, srcip, dstport, srcport, seq, ack;
+	ip = (u_char *)p + 14;
+	size_ip = (*ip&0x0f)*4;
+	tcp = (u_char *)p + 14 + size_ip;
+	totlen = htons(*(u_short*)(ip+2));
+	size_tcp = (*(tcp+12)&0xf0)>>2;
+	srcport = htons(*(u_short*)(tcp));
+	dstport = htons(*(u_short*)(tcp+2));
+	payload = (u_char *)(p + 14 + size_ip + size_tcp);
+	srcip = *(u_int*)(ip+12);
+	dstip = *(u_int*)(ip+16);
+	seq = htonl(*(u_int*)(tcp+4));
+	ack = htonl(*(u_int*)(tcp+8));
+	tcpflags = *(tcp+13);
+	size_payload = totlen - size_ip - size_tcp;
+	if (!strncmp("GET", payload, 3)) 
+		get = 1;
+#if 1
+	if (srcport == 80 || dstport == 80) {
+		PyObject *r = PyObject_CallFunction(pyfunc, "kkkkiiks#i", 
+				srcip, dstip, srcport, dstport, seq, ack, tcpflags, 
+				payload, size_payload, get
+				);
+//		printf("r=%p\n", r);
+		if (r)
+			Py_DECREF(r);
+		else {
+			printf("call failed\n");
+			printf("srcip=%x dstip=%x srcport=%x dstport=%x seq=%x ack=%x size_payload=%d\n", 
+					srcip, dstip, srcport, dstport, seq, ack, size_payload
+					);
+			PyErr_Print();
+			exit(1);
+		}
+
+	}
+#endif
+}
+
+int main(int argc, char *argv[])
+{
+	pcap_t *p;
+	struct bpf_program fp;
+	Py_Initialize();
+	PyRun_SimpleString("import sys");
+	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
+	pymod = PyImport_ImportModule("cap");
+	pyfunc = PyObject_GetAttrString(pymod, "process_packet");
+//	printf("pyfunc=%p\n", pyfunc);
+	p = pcap_open_live("eth0", BUFSIZ, 0, 1000, NULL);
+	pcap_compile(p, &fp, "tcp", 0, 0);
+	pcap_setfilter(p, &fp);
+	pcap_loop(p, -1, process, NULL);
+	pcap_close(p);
+	Py_Finalize();
+	return 0;
+}
+

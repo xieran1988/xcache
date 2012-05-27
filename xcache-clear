@@ -1,0 +1,6 @@
+#!/bin/bash
+
+/etc/init.d/xcache stop
+rm -rf /var/lib/xcache/*
+/etc/init.d/xcache start
+

@@ -1,12 +1,22 @@
 XCache
-======
+===========================
 
-XCache: an advanced flv/mp4/f4v caching, streaming system
+XCache is an advanced flv/mp4 caching/streaming system. 
+Filter GET /*.(flv|mp4) using libpcap+python, 
+using mod_h264_streaming for mp4 streaming, and flvlib+fcgi for flv streaming.
 
-Caching: filter GET /*.flv using libpcap+python
+Build
+----------
+Install flvlib: http://pypi.python.org/pypi/flvlib/
+<pre>
+sudo apt-get install python-flup libpcap-dev lighttpd
+sudo make install
+</pre>
 
-Streaming: mod_h264_streaming for mp4/f4v. flvlib+fcgi for flv.
+Managment
+----------
+* Web view at: http://127.0.0.1/cache. 
+* `/etc/init.d/xcache start|stop|restart` controls the daemon.
+* `xcache-list` list the entries.
+* `xcache-clear` clears all entries.
 
-Web interface: http://127.0.0.1/cache
-
-Managment: `/etc/init.d/xcache start|stop|restart`

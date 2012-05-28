@@ -11,10 +11,11 @@ cp: all
 	update-rc.d xcache defaults
 	mkdir -p /usr/lib/xcache
 	mkdir -p /var/lib/xcache
+	cp util.py /usr/lib/python2.7/xcache.py
 	ln -sf /var/lib/xcache /var/www/
 	ln -sf /usr/lib/xcache /var/www/xcache-lib
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
-	cp cap.py cut.py dump.py web.sh /usr/lib/xcache
+	cp jmp.py cap.py cut.py dump.py web.sh /usr/lib/xcache
 	cp pcap /usr/bin/xcache-pcap
 	cp dump.py /usr/bin/xcache-proc
 	cp xcache-list /usr/bin/
@@ -31,6 +32,7 @@ test:
 	[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
 	/etc/init.d/xcache stop
+	/etc/init.d/lighttpd restart
 	xcache-pcap
 	
 clean:

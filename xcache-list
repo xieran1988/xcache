@@ -2,8 +2,7 @@
 
 import marshal, os
 from optparse import OptionParser
-
-cache = '/var/lib/xcache/'
+from xcache import *
 
 def filesize(path):
 	if os.path.exists(path):
@@ -23,29 +22,24 @@ if __name__ == '__main__':
 		print '<table border=1>'
 		print '<tr><th>stat</th><th>size</th><th>start</th><th>url</th><th>filename</th></tr>'
 	for i in os.listdir(cache):
-		short = cache + i + '/'
-		m = marshal.load(open(short+'info','rb'))
+		m = XCacheInfo(cache+i+'/')
 		if opt.w:
 			print '<tr>'
-			s = 'error' if m['stat'].startswith('error') else m['stat']
 			c = {'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
-			if s in c:
-				print '<th><font color=%s>%s</font></th>'%(c[s],s)
-			else:
-				print '<th>%s</th>'%s
-			print '<th>%s</th>'%filesize(short+'pcap')
-			print '<th>%s</th>'%m['start']
+			print '<th><font color=%s>%s</font></th>'%(c[m.stat],m.stat)
+			print '<th>%s</th>'%filesize(m.short+'pcap')
+			print '<th>%s</th>'%m.start
 			print '<th><a href=%s>%s</a></th>'%(
-					'/xcache/'+i+'/file'+m['ext'],
-					m['ext'][1:] if s == 'cached' else ''
+					'/xcache/'+i+'/file',
+					m.ext[1:] if m.stat == 'cached' else ''
 					)
-			print '<th>%s</th>'%m['path']
+			print '<th>%s</th>'%m.path
 			print '</tr>'
 		else:
 			print m
-			print '\tpcap', filesize(short+'pcap')
-			print '\tfile', filesize(short+'file')
-			print '\t', short+'file'+m['ext']
+			print '\tpcap', filesize(m.short+'pcap')
+			print '\tfile', filesize(m.short+'file')
+			print '\t', m.short+'file'+m.ext
 	if opt.w:
 		print '</table>'
 

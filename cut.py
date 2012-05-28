@@ -61,12 +61,8 @@ def cutflv(filename, start, tellsize=False):
 	meta.keyframes.filepositions = [oldpos[0]] + newpos
 	yield create_script_tag('onMetaData', meta)
 
-	#print 'avhdrsize', avhdrsize
 	fi.seek(avhdrstart)
 	yield fi.read(avhdrsize)
-
-	#print meta.keyframes.times
-	#print meta.keyframes.filepositions
 
 	fi.seek(firstpos)
 	try :
@@ -74,8 +70,6 @@ def cutflv(filename, start, tellsize=False):
 			i = fi.tell()
 			tag = tag_iter.next()
 			size = fi.tell() - i
-		#	print fi.tell()
-		#	print size, tag.size, tag.timestamp - startts[type(tag)]
 			fi.seek(i)
 			yield fi.read(4)
 			fi.read(4)
@@ -87,23 +81,15 @@ def cutflv(filename, start, tellsize=False):
 	fi.close()
 
 if __name__ == '__main__':
-#	fo = open('/home/xb/share/out.flv', 'wb+')
-#	fo.write(''.join([i for i in cutflv('/home/xb/share/wh.flv', 190)]))
-#	fo.close()
 	def app(env, start_rsp):
 		start_rsp('200 OK', [ ('Content-Type', 'video/x-flv') ])
-		#for key, value in env.iteritems():
-		#	yield "%s: %s\n" % (key, value)
 		u = urlparse(env['REQUEST_URI'])
 		qs = parse_qs(u.query)
 		try:
 			start = float(qs['start'][0]) 
 		except:
 			start = 0
-		#yield env['REQUEST_URI']
-#		return ['hahha']
 		for i in cutflv('/var/www'+u.path, start):
 			yield i
-
 	WSGIServer(app).run()
 

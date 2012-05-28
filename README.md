@@ -9,14 +9,14 @@ Build
 ----------
 Install flvlib: http://pypi.python.org/pypi/flvlib/
 <pre>
-sudo apt-get install python-flup libpcap-dev lighttpd
+sudo apt-get install python-flup libpcap-dev lighttpd python-dev
 sudo make install
 </pre>
 
 Managment
 ----------
-* Web view at: http://127.0.0.1/cache. 
+* Web view at: `http://localhost/cache` 
 * `/etc/init.d/xcache start|stop|restart` controls the daemon.
 * `xcache-list` list the entries.
 * `xcache-clear` clears all entries.
-
+* receive `GET /host/path/to/video.mp4` and serve cached file or redirect to `http://host/path/to/video.mp4`

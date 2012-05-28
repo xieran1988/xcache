@@ -9,7 +9,7 @@ Build
 ----------
 Install flvlib: http://pypi.python.org/pypi/flvlib/
 <pre>
-sudo apt-get install python-flup libpcap-dev lighttpd
+sudo apt-get install python-flup libpcap-dev lighttpd python-dev
 sudo make install
 </pre>
 

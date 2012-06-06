@@ -20,7 +20,7 @@ class XCacheURL():
 			try:
 				self.start = float(self.qs['start'][0])
 			except:
-				self.start = None
+				self.start = 0.0
 
 class XCacheInfo():
 	def __init__(self, short=None):

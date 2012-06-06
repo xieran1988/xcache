@@ -23,6 +23,7 @@ cp: all
 	cp mod_h264_streaming.so /usr/lib/lighttpd
 
 install: 
+	rm -rf /var/lib/xcache
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
 	/etc/init.d/xcache start

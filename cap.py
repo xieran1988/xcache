@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re, os, shutil, hashlib, marshal, logging, traceback, pcap
+import re, os, shutil, hashlib, marshal, logging, traceback
 from urlparse import *
 from xcache import *
 from socket import *

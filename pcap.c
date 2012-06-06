@@ -62,6 +62,10 @@ int main(int argc, char *argv[])
 	PyRun_SimpleString("import sys");
 	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
 	pymod = PyImport_ImportModule("cap");
+	if (!pymod) {
+		PyErr_Print();
+		exit(1);
+	}
 	pyfunc = PyObject_GetAttrString(pymod, "process_packet");
 	p = pcap_open_live("eth0", BUFSIZ, 1, 1000, NULL);
 	ifr.ifr_addr.sa_family = AF_INET;

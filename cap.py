@@ -7,6 +7,7 @@ from socket import *
 from cStringIO import *
 
 conn = {}
+exts = ['.flv', '.mp4', '.mp3', '.exe', '.rar', '.zip']
 
 def check_request(payload):
 	r = re.match(r'^GET (\S+) \S+\r\n', payload)
@@ -14,7 +15,7 @@ def check_request(payload):
 		return None
 	url = r.groups()[0]
 	u = XCacheURL(url)
-	if u.ext not in ['.flv', '.mp4']:
+	if u.ext not in exts:
 		return None
 	print 'GET', url
 	rm = XCacheInfo()
@@ -72,7 +73,7 @@ def check_response(p, payload):
 			os.symlink('file', m.short+'file'+m.ext+'c')
 		m.stat = 'caching'
 		m.fp = open(m.short+'file', 'wb+')
-		m.fph = open(m.short+'header.txt', 'wb+')
+		m.fph = open(m.short+'rsp.txt', 'wb+')
 		m.fph.write(payload[:f.tell()])
 		m.fp.write(payload[f.tell():])
 		print 'CACHING', m

@@ -18,28 +18,34 @@ if __name__ == '__main__':
 	if opt.w:
 		print '<table border=1>'
 		print '<tr>'
+		print '<th>entry</th>'
 		print '<th>stat</th>'
 		print '<th>size</th>'
 		print '<th>url</th>'
 		print '<th>start</th>'
-		print '<th>entry</th>'
-		print '<th>reason</th>'
+		print '<th>info</th>'
+		print '<th>headers</th>'
 		print '</tr>'
 	for i in os.listdir(cache):
 		m = XCacheInfo(cache+i+'/')
 		if opt.w:
 			print '<tr>'
+			print '<th>%s</th>' % i
 			c = {'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
 			print '<th><font color=%s>%s</font></th>' % (c[m.stat], m.stat)
 			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file')) + (
 														filesize(m.clen) if m.stat == 'caching' else '')
 			print '<th>'
 			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/file', m.ext[1:])
-			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/header.txt', 'header')
 			print '</th>'
 			print '<th>%s</th>' % m.start
-			print '<th>%s</th>' % i
-			print '<th>%s</th>' % (m.reason if m.stat == 'error' else '')
+			print '<th>'
+			print '<span>%s</span>' % (m.reason if m.stat == 'error' else '')
+			print '</th>'
+			print '<th>'
+			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/rsp.txt', 'rsp')
+			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/req.txt', 'req')
+			print '</th>'
 			print '</tr>'
 		else:
 			print m

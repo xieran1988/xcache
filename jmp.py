@@ -27,8 +27,9 @@ if __name__ == '__main__':
 	def app(env, start_rsp):
 		u = urlparse(env['REQUEST_URI'])
 #		logging.info('uri:'+env['REQUEST_URI'])
+		# http://myip/jmp/oldhost/xxxxx
 		a = u.path.split('/')
-		old = '/'.join(a[1:]) + '?' + u.query
+		old = '/'.join(a[2:]) + '?' + u.query
 		s = find(old)
 		start_rsp('302 Found', [('Location', 'http://' + (env['HTTP_HOST']+s if s else old))])
 		return ''

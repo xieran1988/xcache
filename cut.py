@@ -85,11 +85,7 @@ if __name__ == '__main__':
 		start_rsp('200 OK', [ ('Content-Type', 'video/x-flv') ])
 		u = urlparse(env['REQUEST_URI'])
 		qs = parse_qs(u.query)
-		try:
-			start = float(qs['start'][0]) 
-		except:
-			start = 0
-		for i in cutflv('/var/www'+u.path, start):
+		for i in cutflv('/var/www'+u.path, float(qs['start'][0])):
 			yield i
 	WSGIServer(app).run()
 

@@ -43,10 +43,6 @@ void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 		if (r)
 			Py_DECREF(r);
 		else {
-			printf(
-					"srcip=%x dstip=%x srcport=%x dstport=%x seq=%x ack=%x size_payload=%d\n", 
-					srcip, dstip, srcport, dstport, seq, ack, size_payload
-					);
 			PyErr_Print();
 			exit(1);
 		}

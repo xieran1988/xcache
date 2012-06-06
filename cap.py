@@ -24,7 +24,6 @@ def check_request(payload):
 	rm.short = u.short
 	rm.ext = u.ext
 	rm.sha = u.sha
-	rm.clen = 0
 	if not os.path.exists(u.short):
 		return rm
 	m = XCacheInfo(u.short)
@@ -52,13 +51,14 @@ def check_finish(p, rst=False):
 			del_conn(p)
 		elif rst:
 			m.stat = 'error'
-			m.reason = 'got fin or rst before complete. %d/%d' % (m.fp.tell(), m.clen)
+			m.reason = 'got rst %d/%d' % (m.fp.tell(), m.clen)
 			print 'RST', m
 			del_conn(p)
 
 def check_response(p, payload):
 	m = conn[p]
 	f = StringIO(payload)
+	m.clen = 0
 	while True:
 		l = f.readline()
 		if l == '\r\n' or l == '':
@@ -66,14 +66,7 @@ def check_response(p, payload):
 		g = re.match(r"^Content-Length: (\d+)", l)
 		if g is not None:
 			m.clen = int(g.groups()[0])
-	if m.clen == 0 or l == '':
-		m.stat = 'error'
-		m.reason = 'clen not valid ' + ('(eof)' if l == '' else '')
-		if l == '':
-			m.fph.write(payload)
-		print 'ERROR', m
-		del_conn(p)
-	if l == '\r\n':
+	if l == '\r\n' and m.clen > 0:
 		if not os.path.exists(m.short):
 			os.mkdir(m.short)
 			os.symlink('file', m.short+'file'+m.ext+'c')
@@ -83,7 +76,12 @@ def check_response(p, payload):
 		m.fph.write(payload[:f.tell()])
 		m.fp.write(payload[f.tell():])
 		print 'CACHING', m
-		m.dump()
+	else:
+		m.stat = 'error'
+		m.reason = 'invalid header'
+		m.fph.write(payload)
+		print 'ERROR', m
+		del_conn(p)
 
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)

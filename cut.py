@@ -12,7 +12,7 @@ from flvlib.primitives import *
 from flup.server.fcgi_base import *
 from flup.server.fcgi import *
 from flup.server.threadedserver import *
-from urlparse import *
+from xcache import *
 
 def cutflv(filename, start, tellsize=False):
 
@@ -83,9 +83,8 @@ def cutflv(filename, start, tellsize=False):
 if __name__ == '__main__':
 	def app(env, start_rsp):
 		start_rsp('200 OK', [ ('Content-Type', 'video/x-flv') ])
-		u = urlparse(env['REQUEST_URI'])
-		qs = parse_qs(u.query)
-		for i in cutflv('/var/www'+u.path, float(qs['start'][0])):
+		u = XCacheURL(env['REQUEST_URI'])
+		for i in cutflv('/var/www'+u.u.path, u.start):
 			yield i
 	WSGIServer(app).run()
 

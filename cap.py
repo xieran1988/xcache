@@ -25,6 +25,7 @@ def check_request(payload):
 	rm.short = u.short
 	rm.ext = u.ext
 	rm.sha = u.sha
+	rm.stat = 'waiting'
 	if not os.path.exists(u.short):
 		return rm
 	m = XCacheInfo(u.short)
@@ -70,10 +71,12 @@ def check_response(p, payload):
 	if l == '\r\n' and m.clen > 0:
 		if not os.path.exists(m.short):
 			os.mkdir(m.short)
-			os.symlink('file', m.short+'file'+m.ext+'c')
+			os.symlink('file', m.short+'file'+m.ext)
 		m.stat = 'caching'
 		m.fp = open(m.short+'file', 'wb+')
 		m.fph = open(m.short+'rsp.txt', 'wb+')
+		m.hdrlen = f.tell()
+		m.clen -= m.hdrlen
 		m.fph.write(payload[:f.tell()])
 		m.fp.write(payload[f.tell():])
 		print 'CACHING', m
@@ -97,8 +100,8 @@ def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, 
 		pos = seq - m.ack
 		if pos == 0:
 			check_response(p2, payload)
-		elif pos > 0:
-			m.fp.seek(pos)
+		elif pos > 0 and m.stat == 'caching':
+			m.fp.seek(pos - m.hdrlen)
 			m.fp.write(payload)
 			check_finish(p2)
 	if (p in conn or p2 in conn) and (tcpflags & 5) != 0:

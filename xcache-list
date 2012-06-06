@@ -36,7 +36,7 @@ if __name__ == '__main__':
 			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file')) + (
 														filesize(m.clen) if m.stat == 'caching' else '')
 			print '<th>'
-			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/file', m.ext[1:])
+			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/file'+m.ext, m.ext[1:])
 			print '</th>'
 			print '<th>%s</th>' % m.start
 			print '<th>'

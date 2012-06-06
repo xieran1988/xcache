@@ -30,7 +30,7 @@ if __name__ == '__main__':
 		a = u.path.split('/')
 		old = '/'.join(a[1:]) + '?' + u.query
 		s = find(old)
-		start_rsp('302 Found', [('Location', 'http://' + (env['HTTP_HOST']+s if s else old+'&ytag=passthru'))])
+		start_rsp('302 Found', [('Location', 'http://' + (env['HTTP_HOST']+s if s else old))])
 		return ''
 
 #	logging.basicConfig(filename='/tmp/jmp', level=logging.INFO)

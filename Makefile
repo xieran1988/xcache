@@ -23,13 +23,13 @@ cp: all
 	cp mod_h264_streaming.so /usr/lib/lighttpd
 
 install: 
-	[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
+	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
 	/etc/init.d/xcache start
 	/etc/init.d/lighttpd restart
 
 test:
-	[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
+	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
 	/etc/init.d/xcache stop
 	/etc/init.d/lighttpd restart

@@ -1,68 +1,110 @@
 #!/usr/bin/python
 
-import re, os, shutil, hashlib, marshal, logging, traceback
+import re, os, shutil, hashlib, marshal, logging, traceback, copy
 from urlparse import *
 from xcache import *
 from socket import *
+from cStringIO import *
 
 conn = {}
-sock = socket(AF_INET, SOCK_DGRAM)
-addr = 'localhost', 1653
 
-def should_cache(payload):
+def check_request(payload):
 	r = re.match(r'^GET (\S+) \S+\r\n', payload)
 	if r is None:
 		return None
 	url = r.groups()[0]
 	u = XCacheURL(url)
-	print 'GET', url
 	if u.ext not in ['.flv', '.mp4']:
 		return None
-	print '\t', u.qs
+	print 'GET', url
 	rm = XCacheInfo()
 	rm.url = url
-	rm.stat = 'caching'
 	rm.start = u.start
 	rm.path = u.basename
 	rm.short = u.short
 	rm.ext = u.ext
 	rm.sha = u.sha
+	rm.clen = 0
 	if not os.path.exists(u.short):
 		return rm
 	m = XCacheInfo(u.short)
-	print '\talready exists', m
 	if m.stat == 'cached' and u.start < m.start:
+		print 'EXISTS', m
 		return rm
-	if m.stat.startswith('error'):
+	if m.stat == 'error':
+		print 'REWRITE', m
 		return rm
 	return None
+
+def del_conn(p):
+	conn[p].fp.close()
+	conn[p].fph.close()
+	conn[p].dump()
+	del conn[p]
+
+def check_finish(p, rst=False):
+	if p in conn:
+		m = conn[p]
+		if m.fp.tell() >= m.clen:
+			m.fp.truncate(m.clen)
+			m.stat = 'cached'
+			print 'CACHED', m
+			del_conn(p)
+		elif rst:
+			m.stat = 'error'
+			m.reason = 'got fin or rst before complete. %d/%d' % (m.fp.tell(), m.clen)
+			print 'RST', m
+			del_conn(p)
+
+def check_response(p, payload):
+	m = conn[p]
+	f = StringIO(payload)
+	while True:
+		l = f.readline()
+		if l == '\r\n' or l == '':
+			break
+		g = re.match(r"^Content-Length: (\d+)", l)
+		if g is not None:
+			m.clen = int(g.groups()[0])
+	if m.clen == 0 or l == '':
+		m.stat = 'error'
+		m.reason = 'clen not valid ' + ('(eof)' if l == '' else '')
+		if l == '':
+			m.fph.write(payload)
+		print 'ERROR', m
+		del_conn(p)
+	if l == '\r\n':
+		if not os.path.exists(m.short):
+			os.mkdir(m.short)
+			os.symlink('file', m.short+'file'+m.ext+'c')
+		m.stat = 'caching'
+		m.fp = open(m.short+'file', 'wb+')
+		m.fph = open(m.short+'header.txt', 'wb+')
+		m.fph.write(payload[:f.tell()])
+		m.fp.write(payload[f.tell():])
+		print 'CACHING', m
+		m.dump()
 
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)
 	if get == 1 and p not in conn and not tome:
-		m = should_cache(payload)
+		m = check_request(payload)
 		if m:
-			print 'start caching', m
-			if not os.path.exists(m.short):
-				os.mkdir(m.short)
-			m.dump()
-			conn[p] = {'ack':ack, 'info':m, 'fp':open(m.short+'pcap', 'wb+')}
-	p = (dstip, srcip, dstport, srcport)
-	if p in conn:
-		c = conn[p]
-		fp = c['fp']
-		pos = seq - c['ack']
-		m = c['info']
-		if pos >= 0 and len(payload) > 0:
-			fp.seek(pos)
-			fp.write(payload)
-		if (tcpflags & 5) != 0: # fin & rst
-			fp.close()
-			m.stat = 'processing'
-			print 'caching done', m
-			m.dump()
-			sock.sendto('', addr)
-			del conn[p]
+			m.ack = ack
+			conn[p] = m
+	p2 = (dstip, srcip, dstport, srcport)
+	if p2 in conn and len(payload) > 0:
+		m = conn[p2]
+		pos = seq - m.ack
+		if pos == 0:
+			check_response(p2, payload)
+		elif pos > 0:
+			m.fp.seek(pos)
+			m.fp.write(payload)
+			check_finish(p2)
+	if (p in conn or p2 in conn) and (tcpflags & 5) != 0:
+		check_finish(p2, True)
+		check_finish(p, True)
 
 if __name__ == '__main__':
 	process_packet(0x123, 0x123, 11, 11, 1111, 1111, 111, "GET /var/heelo.flv?start=10 HTTP2.2\r\n", 1)

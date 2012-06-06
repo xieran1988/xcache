@@ -30,7 +30,10 @@ class XCacheInfo():
 	def dump(self, short=None):
 		if short is None:
 			short = self.short
-		marshal.dump(self.__dict__, open(short+'info', 'wb+'))
+		d = self.__dict__.copy()
+		del d['fp']
+		del d['fph']
+		marshal.dump(d, open(short+'info', 'wb+'))
 	def load(self, short=None):
 		if short is None:
 			short = self.short

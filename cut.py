@@ -37,7 +37,7 @@ def cutflv(filename, start, tellsize=False):
 
 	oldtimes = meta.keyframes.times
 	oldpos = meta.keyframes.filepositions
-	newtimes = filter(lambda x:x>start, oldtimes)
+	newtimes = filter(lambda x:x>=start, oldtimes)
 	firsttime = newtimes[0]
 	newtimes = map(lambda x:x-firsttime, newtimes)
 	newpos = oldpos[-len(newtimes):]

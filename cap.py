@@ -58,7 +58,7 @@ def del_conn(p):
 def check_finish(p, rst=False):
 	if p in conn:
 		m = conn[p]
-		if m.fp.tell() >= m.clen:
+		if m.fp.tell() >= m.clen and m.stat == 'caching':
 			m.fp.truncate(m.clen)
 			m.stat = 'cached'
 			print 'CACHED', m
@@ -79,6 +79,14 @@ def check_response(p, pos, payload):
 		print 'ERROR', m
 		return 
 	f = StringIO(payload)
+	if pos == 0:
+		r = f.readline()
+		if '200' not in r:
+			m.stat = 'error'
+			m.reason = 'rsp not 200 OK'
+			del_conn(p)
+			print 'ERROR', m
+			return 
 	while True:
 		l = f.readline()
 		if l == '\r\n' or l == '':

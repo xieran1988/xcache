@@ -21,6 +21,7 @@ def new_conn(p, u, payload, ack):
 	m.fp = open(m.short+'file', 'wb+')
 	m.fph = open(m.short+'rsp.txt', 'wb+')
 	m.ack = ack
+	m.clen = 0
 	m.dump()
 	open(m.short+'req.txt', 'wb+').write(payload)
 	conn[p] = m
@@ -36,7 +37,10 @@ def check_request(p, payload, ack):
 	print 'GET', url
 	if os.path.exists(u.short):
 		m = XCacheInfo(u.short)
-		if (m.stat == 'cached' and u.start < m.start) or m.stat == 'error':
+		if (m.stat == 'cached' and u.start < m.start) or \
+				m.stat == 'error' or \
+				m.stat == 'waiting' or \
+				m.stat == 'caching':
 			print 'REWRITE', m
 			new_conn(p, u, payload, ack)
 	else:
@@ -75,7 +79,6 @@ def check_response(p, pos, payload):
 		print 'ERROR', m
 		return 
 	f = StringIO(payload)
-	m.clen = 0
 	while True:
 		l = f.readline()
 		if l == '\r\n' or l == '':
@@ -86,6 +89,7 @@ def check_response(p, pos, payload):
 	if l == '\r\n' and m.clen > 0:
 		m.stat = 'caching'
 		m.hdrlen = pos + f.tell()
+		print 'clen', m.clen, 'pos', pos, 'tell', f.tell()
 		m.clen -= m.hdrlen
 		m.fp.write(payload[f.tell():])
 		m.dump()
@@ -101,7 +105,7 @@ def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, 
 		pos = seq - m.ack
 		if m.stat == 'waiting':
 			check_response(p2, pos, payload)
-		if m.stat == 'caching' and pos > 0:
+		elif m.stat == 'caching' and pos > 0:
 			m.fp.seek(pos - m.hdrlen)
 			m.fp.write(payload)
 			check_finish(p2)

@@ -1,3 +1,4 @@
+#include <Python.h>
 #include <pcap.h>
 #include <stdio.h>
 #include <string.h> 
@@ -6,7 +7,6 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#include <Python.h>
 
 static PyObject *pyfunc, *pymod;
 static u_char mymac[6];

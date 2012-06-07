@@ -38,8 +38,9 @@ def check_request(payload):
 	return None
 
 def del_conn(p):
-	conn[p].fp.close()
-	conn[p].fph.close()
+	if hasattr(conn[p], 'fp'):
+		conn[p].fp.close()
+		conn[p].fph.close()
 	conn[p].dump()
 	del conn[p]
 

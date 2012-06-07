@@ -90,7 +90,6 @@ def check_response(p, pos, payload):
 		m.stat = 'caching'
 		m.hdrlen = pos + f.tell()
 		print 'clen', m.clen, 'pos', pos, 'tell', f.tell()
-		m.clen -= m.hdrlen
 		m.fp.write(payload[f.tell():])
 		m.dump()
 		print 'CACHING', m

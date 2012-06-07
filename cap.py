@@ -65,8 +65,15 @@ def check_finish(p, rst=False):
 			print 'RST', m
 			del_conn(p)
 
-def check_response(p, payload):
+def check_response(p, pos, payload):
 	m = conn[p]
+	m.fph.write(payload)
+	if pos > 8192:
+		m.stat = 'error'
+		m.reason = 'invalid header'
+		del_conn(p)
+		print 'ERROR', m
+		return 
 	f = StringIO(payload)
 	m.clen = 0
 	while True:
@@ -78,18 +85,11 @@ def check_response(p, payload):
 			m.clen = int(g.groups()[0])
 	if l == '\r\n' and m.clen > 0:
 		m.stat = 'caching'
-		m.hdrlen = f.tell()
+		m.hdrlen = pos + f.tell()
 		m.clen -= m.hdrlen
-		m.fph.write(payload)
 		m.fp.write(payload[f.tell():])
 		m.dump()
 		print 'CACHING', m
-	else:
-		m.stat = 'error'
-		m.reason = 'invalid header'
-		m.fph.write(payload)
-		del_conn(p)
-		print 'ERROR', m
 
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)
@@ -99,9 +99,9 @@ def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, 
 	if p2 in conn and len(payload) > 0:
 		m = conn[p2]
 		pos = seq - m.ack
-		if pos == 0:
-			check_response(p2, payload)
-		elif pos > 0 and m.stat == 'caching':
+		if m.stat == 'waiting':
+			check_response(p2, pos, payload)
+		if m.stat == 'caching' and pos > 0:
 			m.fp.seek(pos - m.hdrlen)
 			m.fp.write(payload)
 			check_finish(p2)

@@ -15,21 +15,23 @@ if __name__ == '__main__':
 #			logging.info(repr(m))
 #			logging.info(u.start)
 			if m.stat == 'cached':
+				p = '/xcache/%s/file%s' % (m.sha, m.ext)
 				if m.ext in ['.mp4', '.flv']:
 					if u.start == m.start:
-						return '/xcache/%s/file'%m.sha
+						return p
 					if m.start < u.start:
-						return '/xcache/%s/file%sc?start=%f'%(m.sha, m.ext, u.start-m.start)
+						return p + '?start=%f'%(u.start-m.start)
 				else:
-					return '/xcache/%s/file'%m.sha
+					return p
 		return None
 
 	def app(env, start_rsp):
 		u = urlparse(env['REQUEST_URI'])
 #		logging.info('uri:'+env['REQUEST_URI'])
-		# http://myip/jmp/oldhost/xxxxx
+		# future http://myip/jmp/oldhost/xxxxx
+		# current http://myip/oldhost/xxxxx
 		a = u.path.split('/')
-		old = '/'.join(a[2:]) + '?' + u.query
+		old = '/'.join(a[1:]) + '?' + u.query
 		s = find(old)
 		start_rsp('302 Found', [('Location', 'http://' + (env['HTTP_HOST']+s if s else old))])
 		return ''

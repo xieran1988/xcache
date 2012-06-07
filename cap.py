@@ -79,13 +79,14 @@ def check_response(p, payload):
 		m.clen -= m.hdrlen
 		m.fph.write(payload[:f.tell()])
 		m.fp.write(payload[f.tell():])
+		m.dump()
 		print 'CACHING', m
 	else:
 		m.stat = 'error'
 		m.reason = 'invalid header'
 		m.fph.write(payload)
-		print 'ERROR', m
 		del_conn(p)
+		print 'ERROR', m
 
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)

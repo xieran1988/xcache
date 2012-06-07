@@ -80,7 +80,7 @@ def check_response(p, payload):
 		m.stat = 'caching'
 		m.hdrlen = f.tell()
 		m.clen -= m.hdrlen
-		m.fph.write(payload[:f.tell()])
+		m.fph.write(payload)
 		m.fp.write(payload[f.tell():])
 		m.dump()
 		print 'CACHING', m

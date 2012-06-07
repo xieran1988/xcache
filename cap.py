@@ -9,38 +9,44 @@ from cStringIO import *
 conn = {}
 exts = ['.flv', '.mp4', '.mp3', '.exe', '.rar', '.zip']
 
-def check_request(payload):
+def new_conn(p, u, ack):
+	m = XCacheInfo()
+	m.url = u.url
+	m.start = u.start
+	m.path = u.basename
+	m.short = u.short
+	m.ext = u.ext
+	m.sha = u.sha
+	m.stat = 'waiting'
+	m.fp = open(m.short+'file', 'wb+')
+	m.fph = open(m.short+'rsp.txt', 'wb+')
+	m.ack = ack
+	m.dump()
+	conn[p] = m
+
+def check_request(p, payload, ack):
 	r = re.match(r'^GET (\S+) \S+\r\n', payload)
 	if r is None:
-		return None
+		return 
 	url = r.groups()[0]
 	u = XCacheURL(url)
 	if u.ext not in exts:
-		return None
+		return 
 	print 'GET', url
-	rm = XCacheInfo()
-	rm.url = url
-	rm.start = u.start
-	rm.path = u.basename
-	rm.short = u.short
-	rm.ext = u.ext
-	rm.sha = u.sha
-	rm.stat = 'waiting'
-	if not os.path.exists(u.short):
-		return rm
-	m = XCacheInfo(u.short)
-	if m.stat == 'cached' and u.start < m.start:
-		print 'EXISTS', m
-		return rm
-	if m.stat == 'error':
-		print 'REWRITE', m
-		return rm
-	return None
+	if os.path.exists(u.short):
+		m = XCacheInfo(u.short)
+		if (m.stat == 'cached' and u.start < m.start) or m.stat == 'error':
+			print 'REWRITE', m
+			new_conn(p, u, ack)
+	else:
+		print 'NEW', u.short
+		os.mkdir(u.short)
+		os.symlink('file', u.short+'file'+u.ext)
+		new_conn(p, u, ack)
 
 def del_conn(p):
-	if hasattr(conn[p], 'fp'):
-		conn[p].fp.close()
-		conn[p].fph.close()
+	conn[p].fp.close()
+	conn[p].fph.close()
 	conn[p].dump()
 	del conn[p]
 
@@ -70,12 +76,7 @@ def check_response(p, payload):
 		if g is not None:
 			m.clen = int(g.groups()[0])
 	if l == '\r\n' and m.clen > 0:
-		if not os.path.exists(m.short):
-			os.mkdir(m.short)
-			os.symlink('file', m.short+'file'+m.ext)
 		m.stat = 'caching'
-		m.fp = open(m.short+'file', 'wb+')
-		m.fph = open(m.short+'rsp.txt', 'wb+')
 		m.hdrlen = f.tell()
 		m.clen -= m.hdrlen
 		m.fph.write(payload[:f.tell()])
@@ -92,10 +93,7 @@ def check_response(p, payload):
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)
 	if get == 1 and p not in conn and not tome:
-		m = check_request(payload)
-		if m:
-			m.ack = ack
-			conn[p] = m
+		check_request(p, payload, ack)
 	p2 = (dstip, srcip, dstport, srcport)
 	if p2 in conn and len(payload) > 0:
 		m = conn[p2]

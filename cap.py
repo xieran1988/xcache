@@ -9,7 +9,7 @@ from cStringIO import *
 conn = {}
 exts = ['.flv', '.mp4', '.mp3', '.exe', '.rar', '.zip']
 
-def new_conn(p, u, ack):
+def new_conn(p, u, payload, ack):
 	m = XCacheInfo()
 	m.url = u.url
 	m.start = u.start
@@ -22,6 +22,7 @@ def new_conn(p, u, ack):
 	m.fph = open(m.short+'rsp.txt', 'wb+')
 	m.ack = ack
 	m.dump()
+	open(m.short+'req.txt', 'wb+').write(payload)
 	conn[p] = m
 
 def check_request(p, payload, ack):
@@ -37,12 +38,12 @@ def check_request(p, payload, ack):
 		m = XCacheInfo(u.short)
 		if (m.stat == 'cached' and u.start < m.start) or m.stat == 'error':
 			print 'REWRITE', m
-			new_conn(p, u, ack)
+			new_conn(p, u, payload, ack)
 	else:
 		print 'NEW', u.short
 		os.mkdir(u.short)
 		os.symlink('file', u.short+'file'+u.ext)
-		new_conn(p, u, ack)
+		new_conn(p, u, payload, ack)
 
 def del_conn(p):
 	conn[p].fp.close()

@@ -4,6 +4,33 @@ import re, os, hashlib, marshal
 from urlparse import *
 
 cache = '/var/lib/xcache/'
+cachelog = '/var/lib/xcache-log/'
+
+class XCacheStat():
+	def __init__(self, p=None):
+		self.cared = False
+		self.__dict__ = {}
+		if p and os.path.exists(p):
+			self.loads(open(p, 'rb'))
+	def clear(self):
+		self.__init__()
+	def inc(self, s, i, care=1, thresold=0):
+		if not hasattr(self, s):
+			setattr(self, s, 0)
+		setattr(self, s, getattr(self, s) + i)
+		if thresold > 0:
+			care = (getattr(self, s) > thresold)
+		if care == 1:
+			self.cared = True
+	def dumps(self):
+		return marshal.dumps(self.__dict__)
+	def dump(self, p):
+		open(p, 'wb+').write(self.dumps())
+	def loads(self, s):
+		self.__dict__ = marshal.loads(s)
+	def add(self, a):
+		for k in a.__dict__:
+			self.inc(k, a.__dict__[k])
 
 class XCacheURL():
 	def __init__(self, url):

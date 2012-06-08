@@ -75,9 +75,15 @@ if __name__ == '__main__':
 	if opt.p:
 		process(opt.p+'/')
 	else:
+		s = XCacheStat()
 		while True:
-			sock.recvfrom(128)
-			process_all()
+			path = cachelog + 'cur'
+			t = XCacheStat(path)
+			s.loads(sock.recvfrom(65536)[0])
+			t.add(s)
+			t.dump(path)
+			print s.__dict__
+	#		process_all()
 #	processall()
 #	sys.exit()
 #	print dump('/home/xb/out', '/home/xb/out.flv')

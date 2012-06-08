@@ -11,6 +11,7 @@ cp: all
 	update-rc.d xcache defaults
 	mkdir -p /usr/lib/xcache
 	mkdir -p /var/lib/xcache
+	mkdir -p /var/lib/xcache-log
 	cp util.py /usr/lib/python2.7/xcache.py
 	ln -sf /var/lib/xcache /var/www/
 	ln -sf /usr/lib/xcache /var/www/xcache-lib

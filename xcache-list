@@ -33,8 +33,7 @@ if __name__ == '__main__':
 			print '<th>%s</th>' % i
 			c = {'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
 			print '<th><font color=%s>%s</font></th>' % (c[m.stat], m.stat)
-			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file')) + (
-														filesize(m.clen) if m.stat == 'caching' else '')
+			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file'))
 			print '<th>'
 			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/file'+m.ext, m.ext[1:])
 			print '</th>'

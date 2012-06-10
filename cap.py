@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-import re, os, shutil, hashlib, marshal, logging, traceback, copy
+import re, os, sys 
+import shutil, hashlib, marshal, logging, traceback, copy
 from urlparse import *
 from xcache import *
 from socket import *
@@ -12,11 +13,10 @@ stat = XCacheStat()
 sock = socket(AF_INET, SOCK_DGRAM)
 
 def new_conn(p, u, payload, ack):
-	m = XCacheInfo()
+	m = XCacheInfo(u.short)
 	m.url = u.url
 	m.start = u.start
 	m.path = u.basename
-	m.short = u.short
 	m.ext = u.ext
 	m.sha = u.sha
 	m.stat = 'waiting'
@@ -28,7 +28,6 @@ def new_conn(p, u, payload, ack):
 	open(m.short+'req.txt', 'wb+').write(payload)
 	conn[p] = m
 	stat.inc('new', 1)
-	stat.inc('start0' if m.start == 0.0 else 'start1', 1)
 
 def check_request(p, payload, ack):
 	r = re.match(r'^GET (\S+) \S+\r\n', payload)
@@ -39,6 +38,7 @@ def check_request(p, payload, ack):
 	if u.ext not in exts:
 		return 
 	print 'GET', url
+	stat.inc('get.start0' if u.start == 0.0 else 'get.start1', 1)
 	if os.path.exists(u.short):
 		m = XCacheInfo(u.short)
 		if (m.stat == 'cached' and u.start < m.start) or \
@@ -114,11 +114,13 @@ def check_response(p, pos, payload):
 
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)
-	stat.inc('packet_bytes', len(payload), care=0)
-	stat.inc('packet_nr', 1, care=0)
+	p2 = (dstip, srcip, dstport, srcport)
 	if get == 1 and p not in conn and not tome:
 		check_request(p, payload, ack)
-	p2 = (dstip, srcip, dstport, srcport)
+	if p not in conn and p2 not in conn:
+		return 
+	stat.inc('packet_bytes', len(payload), care=0)
+	stat.inc('packet_nr', 1, care=0)
 	if p2 in conn and len(payload) > 0:
 		m = conn[p2]
 		pos = seq - m.ack
@@ -133,6 +135,7 @@ def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, 
 		check_finish(p2, True)
 		check_finish(p, True)
 	if stat.cared:
+		print stat
 		sock.sendto(stat.dumps(), ('localhost', 1653))
 		stat.clear()
 

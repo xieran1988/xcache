@@ -1,6 +1,8 @@
 #include <Python.h>
 #include <pcap.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 #include <string.h> 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -54,6 +56,7 @@ int main(int argc, char *argv[])
 	pcap_t *p;
 	struct bpf_program fp;
 	struct ifreq ifr;
+
 	Py_Initialize();
 	PyRun_SimpleString("import sys");
 	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
@@ -63,16 +66,23 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	pyfunc = PyObject_GetAttrString(pymod, "process_packet");
-	p = pcap_open_live("eth0", BUFSIZ, 1, 1000, NULL);
+
 	ifr.ifr_addr.sa_family = AF_INET;
 	strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
 	ioctl(pcap_fileno(p), SIOCGIFHWADDR, &ifr);
 	memcpy(mymac, ifr.ifr_hwaddr.sa_data, 6);
+
+	if (argc > 1) {
+		p = pcap_open_offline(argv[1], NULL);
+	} else 
+		p = pcap_open_live("eth0", BUFSIZ, 1, 1000, NULL);
 	pcap_compile(p, &fp, "tcp", 0, 0);
 	pcap_setfilter(p, &fp);
 	pcap_loop(p, -1, process, NULL);
 	pcap_close(p);
+
 	Py_Finalize();
+
 	return 0;
 }
 

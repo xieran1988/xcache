@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import marshal, os, sys
+from optparse import OptionParser
+from xcache import *
+
+if __name__ == '__main__':
+	parser = OptionParser()
+	parser.add_option('-w', '--web', 
+			action="store_true", dest='w', help='show in HTML format')
+	parser.add_option('-f', '--fields', 
+			dest='f', metavar='f1,f2,f3', help='stat fields f1,f2,f3...')
+	opt, args = parser.parse_args()
+	files = [cachelog+'cur'] if len(args) == 0 else args
+	fields = set(opt.f.split(',')) if opt.f else \
+			reduce(lambda x,y:x|y, [set(XCacheStat(p)._d.keys()) for p in files])
+	t = {k:0 for k in fields}
+	for p in files:
+		for k,v in XCacheStat(p)._d.items():
+			t[k] += v
+	if opt.w:
+		print '<table border=1>'
+		print '<tr>' + ''.join('<th>%s</th>'%k for k in t) + '</tr>'
+		print '<tr>' + ''.join('<th>%d</th>'%t[k] for k in t) + '</tr>'
+		print '</table>'
+	else:
+		print t
+

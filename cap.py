@@ -9,6 +9,7 @@ from cStringIO import *
 
 conn = {}
 exts = ['.flv', '.mp4', '.mp3', '.exe', '.rar', '.zip']
+#exts = ['.flv', '.mp4']
 stat = XCacheStat()
 sock = socket(AF_INET, SOCK_DGRAM)
 
@@ -34,10 +35,10 @@ def check_request(p, payload, ack):
 	if r is None:
 		return 
 	url = r.groups()[0]
+	#print 'GET', url
 	u = XCacheURL(url)
 	if u.ext not in exts:
 		return 
-	print 'GET', url
 	stat.inc('get.start0' if u.start == 0.0 else 'get.start1', 1)
 	if os.path.exists(u.short):
 		m = XCacheInfo(u.short)
@@ -100,7 +101,7 @@ def check_response(p, pos, payload):
 		l = f.readline()
 		if l == '\r\n' or l == '':
 			break
-		g = re.match(r"^Content-Length: (\d+)", l)
+		g = re.match(r"^Content-Length: ?(\d+)", l)
 		if g is not None:
 			m.clen = int(g.groups()[0])
 	if l == '\r\n' and m.clen > 0:

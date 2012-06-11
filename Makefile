@@ -7,33 +7,44 @@ pcap: pcap.o
 	gcc -o $@ $< $(shell pcap-config --libs) $(shell pkg-config python --libs)
 
 cp: all
-	cp xcache /etc/init.d
 	cp util.py /usr/lib/python2.7/xcache.py
 	ln -sf /var/lib/xcache /var/www/
 	ln -sf /usr/lib/xcache /var/www/xcache-lib
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
-	cp jmp.py cap.py cut.py dump.py web.sh /usr/lib/xcache
+	cp jmp.py cap.py dump.py web.sh /usr/lib/xcache
 	cp pcap /usr/bin/xcache-pcap
 	cp dump.py /usr/bin/xcache-proc
+	cp cut.py /usr/bin/xcache-cutflv
 	cp xcache-list /usr/bin/
 	cp xcache-clear /usr/bin/
 	cp xcache-stat /usr/bin
 	cp mod_h264_streaming.so /usr/lib/lighttpd
 
-mkdirs:
+init:
 	rm -rf /var/lib/xcache*
 	mkdir -p /usr/lib/xcache
 	mkdir -p /var/lib/xcache
 	mkdir -p /var/lib/xcache-log
-
-install: mkdirs
+	cp xcache /etc/init.d
 	update-rc.d xcache defaults
+
+dep:
+	cd /tmp && \
+	wget "http://pypi.python.org/packages/source/f/flvlib/flvlib-0.1.12.tar.bz2#md5=9792adde8179516c5bbd474cd89e52dd" && \
+	tar -xvf flvlib-0.1.12.tar.bz2 && \
+	cd flv* && \
+	python setup.py install
+	apt-get install python-flup libpcap-dev lighttpd python-dev
+
+update:
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
 	/etc/init.d/xcache start
 	/etc/init.d/lighttpd restart
 
-replay: mkdirs
+install: init update
+
+replay: init
 	/etc/init.d/xcache stop
 	make cp
 	/etc/init.d/lighttpd restart

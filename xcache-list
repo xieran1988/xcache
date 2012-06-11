@@ -15,6 +15,7 @@ if __name__ == '__main__':
 	parser = OptionParser()
 	parser.add_option('-w', '--web', action="store_true", dest='w', help='show entrys in pretty HTML format')
 	opt, args = parser.parse_args()
+	dirs = args if len(args) else [cache+i+'/' for i in os.listdir(cache)]
 	if opt.w:
 		print '<table border=1>'
 		print '<tr>'
@@ -26,8 +27,8 @@ if __name__ == '__main__':
 		print '<th>info</th>'
 		print '<th>headers</th>'
 		print '</tr>'
-	for i in os.listdir(cache):
-		m = XCacheInfo(cache+i+'/')
+	for i in dirs:
+		m = XCacheInfo(i)
 		if opt.w:
 			print '<tr>'
 			print '<th>%s</th>' % i

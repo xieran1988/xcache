@@ -58,7 +58,7 @@ class XCacheStat(XCacheDB):
 
 class XCacheInfo(XCacheDB):
 	def __init__(self, short):
-		XCacheDB.__init__(self, short+'info', unpick=['fp','fph'])
+		XCacheDB.__init__(self, short+'/info', unpick=['fp','fph'])
 		self.short = short
 
 class XCacheURL():

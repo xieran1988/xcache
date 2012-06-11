@@ -12,6 +12,7 @@
 
 static PyObject *pyfunc, *pymod;
 static u_char mymac[6];
+static int packet_nr;
 
 void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 {
@@ -19,6 +20,7 @@ void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 	u_int size_ip, size_tcp, totlen;
 	int size_payload, get = 0, tome = 0;
 	u_int dstip, srcip, dstport, srcport, seq, ack;
+
 	ip = (u_char *)p + 14;
 	size_ip = (*ip&0x0f)*4;
 	tcp = (u_char *)p + 14 + size_ip;
@@ -48,6 +50,12 @@ void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 			PyErr_Print();
 			exit(1);
 		}
+		if (packet_nr > 0) {
+			printf("%d packets\n", packet_nr);
+			packet_nr = 0;
+		}
+		if (get)
+			packet_nr++;
 	}
 }
 
@@ -68,14 +76,14 @@ int main(int argc, char *argv[])
 	pyfunc = PyObject_GetAttrString(pymod, "process_packet");
 
 	ifr.ifr_addr.sa_family = AF_INET;
-	strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
+	strncpy(ifr.ifr_name, "eth1", IFNAMSIZ-1);
 	ioctl(pcap_fileno(p), SIOCGIFHWADDR, &ifr);
 	memcpy(mymac, ifr.ifr_hwaddr.sa_data, 6);
 
 	if (argc > 1) {
 		p = pcap_open_offline(argv[1], NULL);
 	} else 
-		p = pcap_open_live("eth0", BUFSIZ, 1, 1000, NULL);
+		p = pcap_open_live("eth1", BUFSIZ, 1, 1000, NULL);
 	pcap_compile(p, &fp, "tcp", 0, 0);
 	pcap_setfilter(p, &fp);
 	pcap_loop(p, -1, process, NULL);

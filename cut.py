@@ -1,9 +1,6 @@
 #!/usr/bin/python
 
-import os
-import sys
-import shutil
-import logging
+import os, sys, shutil, logging
 from flvlib.constants import *
 from flvlib.astypes import MalformedFLV, FLVObject
 from flvlib.tags import *
@@ -13,6 +10,7 @@ from flup.server.fcgi_base import *
 from flup.server.fcgi import *
 from flup.server.threadedserver import *
 from xcache import *
+from optparse import OptionParser
 
 def cutflv(filename, start, tellsize=False):
 
@@ -81,10 +79,17 @@ def cutflv(filename, start, tellsize=False):
 	fi.close()
 
 if __name__ == '__main__':
-	def app(env, start_rsp):
-		start_rsp('200 OK', [ ('Content-Type', 'video/x-flv') ])
-		u = XCacheURL(env['REQUEST_URI'])
-		for i in cutflv('/var/www'+u.u.path, u.start):
-			yield i
-	WSGIServer(app).run()
+	parser = OptionParser()
+	parser.add_option('-s', '--start', type='int', dest='s', default=0, help='specify start param')
+	opt, args = parser.parse_args()
+	if len(args) == 0:
+		def app(env, start_rsp):
+			start_rsp('200 OK', [ ('Content-Type', 'video/x-flv') ])
+			u = XCacheURL(env['REQUEST_URI'])
+			for i in cutflv('/var/www'+u.u.path, u.start):
+				yield i
+		WSGIServer(app).run()
+	else:
+			for i in cutflv(args[0], opt.s):
+				print len(i)
 

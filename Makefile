@@ -1,19 +1,21 @@
 
 all: pcap
 
-pcap.o: CFLAGS += $(shell pkg-config python --cflags)
+pcap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
 
 pcap: pcap.o
-	gcc -o $@ $< $(shell pcap-config --libs) $(shell pkg-config python --libs)
+	gcc -o $@ $< $(shell pcap-config --libs) $(shell pkg-config python glib-2.0 --libs)
 
 raw: raw.o
 	gcc -o $@ $< 
 
 cp: all
+	rm -rf /usr/lib/python2.7/xcache.py
 	cp util.py /usr/lib/python2.7/xcache.py
 	ln -sf /var/lib/xcache /var/www/
 	ln -sf /usr/lib/xcache /var/www/xcache-lib
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
+	rm -rf /usr/lib/xcache/*
 	cp jmp.py cap.py dump.py web.sh /usr/lib/xcache
 	cp pcap /usr/bin/xcache-pcap
 	cp dump.py /usr/bin/xcache-proc

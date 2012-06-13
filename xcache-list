@@ -4,13 +4,6 @@ import marshal, os
 from optparse import OptionParser
 from xcache import *
 
-def filesize(s):
-	if s > 1024*1024:
-		return '%.1fM'%(s/1024./1024.)
-	elif s > 1024:
-		return '%.1fK'%(s/1024.)
-	return '%dB'%s
-
 if __name__ == '__main__':
 	parser = OptionParser()
 	parser.add_option('-w', '--web', action="store_true", dest='w', help='show entrys in pretty HTML format')

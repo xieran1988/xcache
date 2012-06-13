@@ -1,4 +1,5 @@
 *.o
+raw
 *.swp
 pcap
 tests/

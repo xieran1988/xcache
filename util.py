@@ -6,6 +6,13 @@ from urlparse import *
 cache = '/var/lib/xcache/'
 cachelog = '/var/lib/xcache-log/'
 
+def filesize(s):
+	if s > 1024*1024:
+		return '%.1fM'%(s/1024./1024.)
+	elif s > 1024:
+		return '%.1fK'%(s/1024.)
+	return '%dB'%s
+
 class XCacheDB():
 	def __init__(self, path=None, **kw):
 		self._d = {}
@@ -50,7 +57,7 @@ class XCacheStat(XCacheDB):
 			if 'thresold' in kw:
 				if self._d[k] > kw['thresold']:
 					self.cared = True
-			elif 'care' not in kw:
+			elif 'care' in kw:
 				self.cared = True
 	def add(self, a):
 		for k in a._d:
@@ -60,6 +67,8 @@ class XCacheInfo(XCacheDB):
 	def __init__(self, short):
 		XCacheDB.__init__(self, short+'/info', unpick=['fp','fph'])
 		self.short = short
+	def __str__(self):
+		return self._d['ext']
 
 class XCacheURL():
 	def __init__(self, url):

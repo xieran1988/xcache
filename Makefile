@@ -6,6 +6,9 @@ pcap.o: CFLAGS += $(shell pkg-config python --cflags)
 pcap: pcap.o
 	gcc -o $@ $< $(shell pcap-config --libs) $(shell pkg-config python --libs)
 
+raw: raw.o
+	gcc -o $@ $< 
+
 cp: all
 	cp util.py /usr/lib/python2.7/xcache.py
 	ln -sf /var/lib/xcache /var/www/

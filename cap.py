@@ -30,6 +30,18 @@ def new_conn(p, u, payload, ack):
 	conn[p] = m
 	stat.inc('new', 1)
 
+rcomp = re.compile(r'^GET (\S+) \S+\r\n')
+
+def check_url(payload):
+	r = rcomp.match(payload)
+	if r is None:
+		return 
+	url = r.groups()[0]
+	u = XCacheURL(url)
+	if u.ext not in exts:
+		return 
+	return u
+
 def check_request(p, payload, ack):
 	r = re.match(r'^GET (\S+) \S+\r\n', payload)
 	if r is None:
@@ -116,6 +128,29 @@ def check_response(p, pos, payload):
 def process_packet(srcip, dstip, srcport, dstport, seq, ack, tcpflags, payload, get, tome):
 	p = (srcip, dstip, srcport, dstport)
 	p2 = (dstip, srcip, dstport, srcport)
+
+	if 1:
+		# mini stat
+		if get == 1:
+			check_url(payload)
+		return 
+
+	# stat 
+	if get == 1 and p not in conn and not tome:
+		if check_url(payload):
+			conn[p] = 1
+	if (p in conn or p2 in conn) and (tcpflags & 5) != 0:
+		if p in conn:
+			del conn[p]
+		if p2 in conn:
+			del conn[p2]
+	if p not in conn and p2 not in conn:
+		return 
+	stat.inc('packet_nr', 1, care=0)
+	if (stat.packet_nr % 100) == 0:
+		print stat.packet_nr
+	return 
+
 	if get == 1 and p not in conn and not tome:
 		check_request(p, payload, ack)
 	if p not in conn and p2 not in conn:

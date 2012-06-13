@@ -12,7 +12,7 @@
 
 static PyObject *pyfunc, *pymod;
 static u_char mymac[6];
-static int packet_nr;
+static int packet_nr, totsize;
 
 void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 {
@@ -40,6 +40,7 @@ void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 	if (!strncmp("GET", payload, 3)) 
 		get = 1;
 	if (srcport == 80 || dstport == 80) {
+#if 0
 		PyObject *r = PyObject_CallFunction(pyfunc, "kkkkiiks#ii", 
 				srcip, dstip, srcport, dstport, seq, ack, tcpflags, 
 				payload, size_payload, get, tome
@@ -50,12 +51,15 @@ void process(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 			PyErr_Print();
 			exit(1);
 		}
-		if (packet_nr > 0) {
-			printf("%d packets\n", packet_nr);
-			packet_nr = 0;
-		}
-		if (get)
+#endif
+		if (1) {
 			packet_nr++;
+			if (!(packet_nr % 40000)) {
+				printf("%d packets %.2fM\n", packet_nr, totsize*1.0/1024/1024);
+				totsize = 0;
+			}
+			totsize += size_payload;
+		}
 	}
 }
 
@@ -84,7 +88,7 @@ int main(int argc, char *argv[])
 		p = pcap_open_offline(argv[1], NULL);
 	} else 
 		p = pcap_open_live("eth1", BUFSIZ, 1, 1000, NULL);
-	pcap_compile(p, &fp, "tcp", 0, 0);
+	pcap_compile(p, &fp, "port 80", 0, 0);
 	pcap_setfilter(p, &fp);
 	pcap_loop(p, -1, process, NULL);
 	pcap_close(p);

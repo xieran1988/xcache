@@ -29,22 +29,23 @@ if __name__ == '__main__':
 		print '</tr>'
 	for i in dirs:
 		m = XCacheInfo(i)
+		e = i.strip('/').split('/')[-1]
 		if opt.w:
 			print '<tr>'
-			print '<th>%s</th>' % i
-			c = {'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
+			print '<th>%s</th>' % e
+			c = {'waiting':'gray', 'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
 			print '<th><font color=%s>%s</font></th>' % (c[m.stat], m.stat)
 			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file'))
 			print '<th>'
-			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/file'+m.ext, m.ext[1:])
+			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/file'+m.ext, m.ext[1:])
 			print '</th>'
 			print '<th>%s</th>' % m.start
 			print '<th>'
 			print '<span>%s</span>' % (m.reason if m.stat == 'error' else '')
 			print '</th>'
 			print '<th>'
-			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/rsp.txt', 'rsp')
-			print '<a href=%s>%s</a>' % ('/xcache/'+i+'/req.txt', 'req')
+			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/rsp.txt', 'rsp')
+			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/req.txt', 'req')
 			print '</th>'
 			print '</tr>'
 		else:

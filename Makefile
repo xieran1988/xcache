@@ -1,13 +1,19 @@
 
 all: pcap
 
-pcap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
+pcap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags) -DXCACHE
 
 pcap: pcap.o
 	gcc -o $@ $< $(shell pcap-config --libs) $(shell pkg-config python glib-2.0 --libs)
 
 raw: raw.o
 	gcc -o $@ $< 
+
+save:
+	tcpdump -i eth1 -w /run/out.pcap "port 80"
+
+load: init
+	make test c=/root/out.pcap
 
 cp: all
 	rm -rf /usr/lib/python2.7/xcache.py
@@ -24,6 +30,13 @@ cp: all
 	cp xcache-clear /usr/bin/
 	cp xcache-stat /usr/bin
 	cp mod_h264_streaming.so /usr/lib/lighttpd
+
+netsniff: install
+	cd /root/netsniff-ng/src && make && \
+		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80.bpf 
+
+replay-scap: install
+	xcache-pcap /root/out.scap 
 
 init:
 	rm -rf /var/lib/xcache*
@@ -62,7 +75,7 @@ test:
 	make cp
 	/etc/init.d/xcache stop
 	/etc/init.d/lighttpd restart
-	xcache-pcap
+	xcache-pcap $c
 	
 clean:
 	rm -rf *.o pcap

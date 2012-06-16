@@ -51,10 +51,13 @@ def del_conn(m):
 	m.fph.close()
 	#m.dump()
 
-def seq_analyze(s):
-	for i in range(0, len(s)-1):
-		if s[i][0]+s[i][1] != s[i+1][0]:
-			print '%x'%s[i][0], s[i][1], '%x'%s[i+1][0], s[i+1][1]
+def seq_analyze(m, s):
+	print 'seq', m.clen
+	for a,b in s:
+		print 'seq', a, b
+#	for i in range(0, len(s)-1):
+#		if s[i][0]+s[i][1] != s[i+1][0]:
+#			print 'seq', '%x'%s[i][0], s[i][1], '%x'%s[i+1][0], s[i+1][1]
 
 def check_finish(m):
 	#if m.fp.tell() >= m.clen and m.stat == 'caching':
@@ -63,7 +66,7 @@ def check_finish(m):
 		m.stat = 'cached'
 		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.io_bytes, m.url
 		if len(m.seq) > 0:
-			seq_analyze(m.seq)
+			seq_analyze(m, m.seq)
 		stat.inc('cached', 1, care=1)
 		stat.inc('tot_clen', m.clen)
 		del_conn(m)
@@ -122,7 +125,7 @@ def process_packet(m, payload, seq):
 			stat.inc('io_bytes', len(payload))
 			stat.inc('io_packets', 1)
 			p = pos - m.hdrlen
-			if m.sha in ['28e7725', 'ca11a3e']:
+			if m.sha in ['ca11a3e']:
 				m.seq.append((p, len(payload)))
 			m.io_bytes += len(payload)
 			m.fp.seek(pos - m.hdrlen)

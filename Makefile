@@ -38,6 +38,13 @@ netsniff: install
 replay-scap: install
 	xcache-pcap /root/out.scap 
 
+get-seq:
+	make replay-scap 2>/dev/null | awk '/^seq/{$$1="";print}' > /tmp/seq
+
+calc-seq:
+	gcc seq.c -o seq
+	./seq
+
 init:
 	rm -rf /var/lib/xcache*
 	mkdir -p /usr/lib/xcache

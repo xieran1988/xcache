@@ -2,4 +2,5 @@
 raw
 *.swp
 pcap
+seq
 tests/

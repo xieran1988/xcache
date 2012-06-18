@@ -16,12 +16,11 @@ static PyObject *py_check_finish;
 static PyObject *py_process_packet;
 static PyObject *py_mod;
 static u_char mymac[6];
-static int packet_nr, totsize;
 static GHashTable *ht;
 
 static void *hash(u_int srcip, u_int dstip, u_int srcport, u_int dstport) 
 {
-	return (void *)(srcip + dstip*123 + srcport*456 + dstport*789);
+	return (void *)(srcip*31+ dstip*97+ srcport*13+ dstport*67);
 }
 
 static void py_assert(void *p)
@@ -36,9 +35,8 @@ void xcache_process_packet(u_char *p)
 {
 	u_char *payload, *ip, *tcp, tcpflags;
 	u_int size_ip, size_tcp, totlen;
-	int size_payload, get = 0, to_me = 0;
+	int size_payload;
 	u_int dstip, srcip, dstport, srcport, seq, ack;
-	static int io_bytes;
 
 	ip = (u_char *)p + 14;
 	size_ip = (*ip&0x0f)*4;
@@ -55,55 +53,122 @@ void xcache_process_packet(u_char *p)
 	tcpflags = *(tcp+13);
 	size_payload = totlen - size_ip - size_tcp;
 
+	static u_int monip = 0x22a9fd77;
+	{
+		if (dstport == 80 && !monip) {
+			monip = srcip;
+		}
+		if (srcip != monip && dstip != monip) 
+			return ;
+	}
+
+	static int io_bytes, packet_nr, totsize, syn, rst;
+	if (1) {
+		if (tcpflags & 0x02)
+			syn++;
+		if (tcpflags & 0x05)
+			rst++;
+		packet_nr++;
+		if (!(packet_nr % 10000)) {
+			fprintf(stderr, "%d packets monip %x syn %d rst %d %.2fM io_bytes %.2fM ht %d\n", 
+					packet_nr, monip, syn, rst,
+					totsize*1.0/1024/1024, io_bytes*1.0/1024/1024,
+					g_hash_table_size(ht)
+					);
+			totsize = 0; io_bytes = 0; syn = 0; rst = 0;
+		}
+		totsize += size_payload;
+	}
+
+	int to_me;
 	if (!memcmp(mymac, p, 6))
 		to_me = 1;
-	if (size_payload > 30 && !strncmp("GET", payload, 3)) {
-		int i = size_payload;
-		char *s = (char *)payload;
-		while (i--) {
-			if (*s == '\r')
-				break;
-			s++;
-		}
-		if (i >= 0)
-			*s = 0;
-		char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
-//		char *exts[] = {"flv"};
-		for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) 
-			if (strstr(payload, exts[i])) {
-				get = 1;
-				*s = '\r';
+
+	int get;
+	if (0) {
+		if (size_payload > 30 && !strncmp("GET", payload, 3)) {
+			int i = size_payload;
+			char *s = (char *)payload;
+			while (i--) {
+				if (*s == '\r')
+					break;
+				s++;
 			}
+			if (i >= 0)
+				*s = 0;
+			char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
+			for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) 
+				if (strstr(payload, exts[i])) {
+					get = 1;
+					*s = '\r';
+				}
+		}
 	}
+
+	get = 1;
+	if (1) {
+		void *h1 = hash(srcip, dstip, srcport, dstport);
+		void *h2 = hash(dstip, srcip, dstport, srcport);
+		void *r1 = g_hash_table_lookup(ht, h1);
+		if ((tcpflags & 0x02) && get && !r1) {
+			g_hash_table_insert(ht, h1, (void *)1);
+			g_hash_table_insert(ht, h2, (void *)1);
+		}
+		if (tcpflags & 0x05) {
+			g_hash_table_remove(ht, h1);
+			g_hash_table_remove(ht, h2);
+		}
+	}
+
+
+#if 0
+#define XCONNTRACK
+//#define XPY
+
 	void *h1 = hash(srcip, dstip, srcport, dstport);
 	void *h2 = hash(dstip, srcip, dstport, srcport);
 	void *r1 = g_hash_table_lookup(ht, h1);
-	if (!r1 && get && !to_me) {
-#if 1
+	if (!r1 && get && !to_me && dstport == 80) {
+#ifdef XPY
 		PyObject *r = PyObject_CallFunction(py_check_request, "s#k", payload, size_payload, ack);
 		py_assert(r);
 		if (r != Py_None) {
 			g_hash_table_insert(ht, h1, r);
 			g_hash_table_insert(ht, h2, r);
+//			printf("insert %p %p %p\n", r, h1, h2);
 		}
 #endif
+#ifdef XCONNTRACK
+		g_hash_table_insert(ht, h1, NULL);
+		g_hash_table_insert(ht, h2, NULL);
+#endif
 	}
-	if (r1) {
+	if (r1 && size_payload > 0 && srcport == 80) {
 		io_bytes += size_payload;
+#ifdef XPY
 		PyObject *r = PyObject_CallFunction(py_process_packet, "Os#k", r1, payload, size_payload, seq);
 		py_assert(r);
 		if (r == Py_None) {
 			g_hash_table_remove(ht, h1);
 			g_hash_table_remove(ht, h2);
+			//printf("remove %p %p %p\n", r1, h1, h2);
 			r1 = NULL;
 		}
+#endif
 	}
 	if ((tcpflags & 5) && r1) {
+		//printf("finish %p %p %p\n", r1, h1, h2);
+#ifdef XPY
 		PyObject *r = PyObject_CallFunction(py_check_finish, "O", r1);
 		py_assert(r);
 		g_hash_table_remove(ht, h1);
 		g_hash_table_remove(ht, h2);
 		Py_DECREF(r1);
+#endif
+#ifdef XCONNTRACK
+		g_hash_table_remove(ht, h1);
+		g_hash_table_remove(ht, h2);
+#endif
 	}
 
 #if 0
@@ -120,24 +185,14 @@ void xcache_process_packet(u_char *p)
 		}
 	}
 #endif 
-	if (1) {
-		packet_nr++;
-		if (!(packet_nr % 40000)) {
-			fprintf(stderr, "%d packets %.2fM io_bytes %.2fM ht %d\n", 
-					packet_nr, totsize*1.0/1024/1024, io_bytes*1.0/1024/1024,
-					g_hash_table_size(ht)
-					);
-			totsize = 0;
-			io_bytes = 0;
-		}
-		totsize += size_payload;
-		return;
-	}
+
+#endif
+
 }
 
 static void process_pcap(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
 {
-	xcache_process_packet(p);
+	xcache_process_packet((u_char *)p);
 }
 
 void xcache_init()

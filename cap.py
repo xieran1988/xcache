@@ -28,6 +28,7 @@ def new_conn(u, payload, ack):
 	m.io_bytes = 0
 	open(m.short+'req.txt', 'wb+').write(payload)
 	stat.inc('new', 1)
+#	print 'insert', m
 	return m
 
 rcomp = re.compile(r'^GET (\S+) \S+\r\n')
@@ -46,9 +47,10 @@ def check_request(payload, ack):
 		os.mkdir(u.short)
 	return new_conn(u, payload, ack)
 
-def del_conn(m):
+def del_conn(m, f=None):
 	m.fp.close()
 	m.fph.close()
+	#print 'del', m, f
 	#m.dump()
 
 def seq_analyze(m, s):
@@ -60,6 +62,7 @@ def seq_analyze(m, s):
 #			print 'seq', '%x'%s[i][0], s[i][1], '%x'%s[i+1][0], s[i+1][1]
 
 def check_finish(m):
+#	print 'finish', m
 	#if m.fp.tell() >= m.clen and m.stat == 'caching':
 	if m.stat == 'caching':
 		m.fp.truncate(m.clen)
@@ -67,22 +70,22 @@ def check_finish(m):
 		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.io_bytes, m.url
 		if len(m.seq) > 0:
 			seq_analyze(m, m.seq)
+			sys.exit(0)
 		stat.inc('cached', 1, care=1)
 		stat.inc('tot_clen', m.clen)
-		del_conn(m)
 	else:
 		#print 'RST', m, m.stat, m.reason if hasattr(m, 'reason') else ''
 		m.stat = 'error'
 		m.reason = 'got rst %d/%d' % (m.fp.tell(), m.clen)
 		stat.inc('error.rst', 1)
-		del_conn(m)
+	del_conn(m, 'fin')
 
 def check_response(m, pos, payload):
 	m.fph.write(payload)
 	if pos > 8192:
 		m.stat = 'error'
 		m.reason = 'invalid header'
-		del_conn(m)
+		del_conn(m, 'rsp')
 		stat.inc('error.hdr', 1)
 		#print 'ERROR', m
 		return 
@@ -93,7 +96,7 @@ def check_response(m, pos, payload):
 		if '200' not in r:
 			m.stat = 'error'
 			m.reason = 'rsp not 200 OK'
-			del_conn(m)
+			del_conn(m, 'rsp')
 			stat.inc('error.rsp', 1)
 			#print 'ERROR', m
 			return 
@@ -106,6 +109,7 @@ def check_response(m, pos, payload):
 			m.clen = int(g.groups()[0])
 	if l == '\r\n' and m.clen > 0:
 		m.stat = 'caching'
+		m.fp.truncate(m.clen)
 		m.hdrlen = pos + f.tell()
 		#print 'clen', m.clen, 'pos', pos, 'tell', f.tell()
 		m.fp.write(payload[f.tell():])
@@ -125,7 +129,7 @@ def process_packet(m, payload, seq):
 			stat.inc('io_bytes', len(payload))
 			stat.inc('io_packets', 1)
 			p = pos - m.hdrlen
-			if m.sha in ['ca11a3e']:
+			if 'seq' in os.environ and m.sha == os.environ['seq']:
 				m.seq.append((p, len(payload)))
 			m.io_bytes += len(payload)
 			m.fp.seek(pos - m.hdrlen)

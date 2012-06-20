@@ -29,6 +29,7 @@ def new_conn(u, payload, ack):
 	open(m.short+'req.txt', 'wb+').write(payload)
 	stat.inc('new', 1)
 #	print 'insert', m
+	m.dump()
 	return m
 
 rcomp = re.compile(r'^GET (\S+) \S+\r\n')
@@ -45,26 +46,32 @@ def check_request(payload, ack):
 	stat.inc('get.start0' if u.start == 0.0 else 'get.start1', 1)
 	if not os.path.exists(u.short):
 		os.mkdir(u.short)
+		os.symlink(u.short+'/file'+u.ext, u.short+'/file')
 	return new_conn(u, payload, ack)
 
 def del_conn(m, f=None):
 	m.fp.close()
 	m.fph.close()
 	#print 'del', m, f
-	#m.dump()
+	m.dump()
 
 def seq_analyze(m, s):
-	print 'seq', m.clen
+	f = open(m.short+'/seq', 'w+')
+	f.write('%d\n'%m.clen)
 	for a,b in s:
-		print 'seq', a, b
+		f.write('%d %d\n' % (a,b))
 #	for i in range(0, len(s)-1):
 #		if s[i][0]+s[i][1] != s[i+1][0]:
 #			print 'seq', '%x'%s[i][0], s[i][1], '%x'%s[i+1][0], s[i+1][1]
+	f.close()
+	os.system('/root/xcache/seq \
+			%s/seq %s/seq-stat %s/seq-holes.txt \
+			> /dev/null' % (m.short, m.short, m.short)
+			)
 
 def check_finish(m):
 #	print 'finish', m
-	#if m.fp.tell() >= m.clen and m.stat == 'caching':
-	if m.stat == 'caching':
+	if m.fp.tell() >= m.clen and m.stat == 'caching':
 		m.fp.truncate(m.clen)
 		m.stat = 'cached'
 		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.io_bytes, m.url
@@ -95,7 +102,7 @@ def check_response(m, pos, payload):
 		m.rsp = r.strip()
 		if '200' not in r:
 			m.stat = 'error'
-			m.reason = 'rsp not 200 OK'
+			m.reason = r
 			del_conn(m, 'rsp')
 			stat.inc('error.rsp', 1)
 			#print 'ERROR', m
@@ -129,7 +136,10 @@ def process_packet(m, payload, seq):
 			stat.inc('io_bytes', len(payload))
 			stat.inc('io_packets', 1)
 			p = pos - m.hdrlen
-			if 'seq' in os.environ and m.sha == os.environ['seq']:
+			if 'seq' in os.environ and ( \
+					m.sha == os.environ['seq'] or \
+					os.environ['seq'] == 'all') \
+					:
 				m.seq.append((p, len(payload)))
 			m.io_bytes += len(payload)
 			m.fp.seek(pos - m.hdrlen)

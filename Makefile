@@ -10,8 +10,8 @@ test-raw: raw.o
 	gcc -o raw $< 
 	./raw
 
-save:
-	tcpdump -i eth1 -w /run/out.pcap "port 80"
+save-pcap:
+	tcpdump -i eth1 -w /root/out.pcap "port 80"
 
 load: init
 	make test c=/root/out.pcap
@@ -32,17 +32,26 @@ cp: all
 	cp xcache-stat /usr/bin
 	cp mod_h264_streaming.so /usr/lib/lighttpd
 
-netsniff: install stop
+save-scap: install 
 	cd /root/netsniff-ng/src && make && \
 		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80.bpf 
 
-replay-scap: install
-	xcache-pcap /root/out.scap 
+test-scap:
+	make save-scap
+	make replay-scap
 
-get-seq:
-	make replay-scap 2>/dev/null | awk '/^seq/{$$1="";print}' > /tmp/seq
+replay: install
+	/etc/init.d/xcache stop
+	make cp
+	/etc/init.d/lighttpd restart
 	gcc seq.c -o seq
-	./seq
+	seq=all xcache-pcap $f 
+
+replay-pcap:
+	make replay f=/root/out.pcap 
+
+replay-scap: 
+	make replay f=/root/out.scap 
 
 test-mutex:
 	gcc mutex.c -pthread -o mutex 
@@ -74,18 +83,10 @@ stop:
 update:
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
-	/etc/init.d/xcache start
 	/etc/init.d/lighttpd restart
 
 install: init update
 
-replay: init
-	/etc/init.d/xcache stop
-	make cp
-	/etc/init.d/lighttpd restart
-	sudo xcache-pcap tests/2.pcap
-	-wget -O /dev/null http://127.0.0.1/shot/dfdsf.cf
-	sudo pkill xcache-proc
 
 test:
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop

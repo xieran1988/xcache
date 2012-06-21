@@ -6,13 +6,15 @@ from xcache import *
 
 if __name__ == '__main__':
 	parser = OptionParser()
-	parser.add_option('-w', '--web', action="store_true", dest='w', help='show entrys in pretty HTML format')
+	parser.add_option('-w', '--web', \
+			action="store_true", dest='w', \
+			help='show entrys in pretty HTML format')
 	opt, args = parser.parse_args()
-	dirs = args if len(args) else [cache+i+'/' for i in os.listdir(cache)]
 	if opt.w:
 		print '<table border=1>'
 		print '<tr>'
 		print '<th>entry</th>'
+		print '<th>session</th>'
 		print '<th>stat</th>'
 		print '<th>size</th>'
 		print '<th>url</th>'
@@ -20,33 +22,37 @@ if __name__ == '__main__':
 		print '<th>info</th>'
 		print '<th>headers</th>'
 		print '</tr>'
-	for i in dirs:
-		m = XCacheInfo(i)
-		e = i.strip('/').split('/')[-1]
-		if opt.w:
-			print '<tr>'
-			print '<th>%s</th>' % e
-			c = {'waiting':'gray', 'error':'red', 'cached':'green', 'caching':'gray', 'processing':'yellow'}
-			print '<th><font color=%s>%s</font></th>' % (c[m.stat], m.stat)
-			print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file'))
-			print '<th>'
-			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/file'+m.ext, m.ext[1:])
-			print '</th>'
-			print '<th>%s</th>' % m.start
-			print '<th style="text-align:left;">'
-			if m.stat == 'error':
-				print m.reason 
-			if m.stat == 'cached':
-				print open(m.short+'seq-stat.txt').read()
-				print '<a href=%s>%s</a>' % ('/xcache/'+e+'/seq-holes.txt', 'holes')
-			print '</th>'
-			print '<th>'
-			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/rsp.txt', 'rsp')
-			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/req.txt', 'req')
-			print '</th>'
-			print '</tr>'
-		else:
-			print m
+	for i in os.listdir(cache):
+		for j in os.listdir(cache+i+'/'):
+			x = cache+i+'/'+j+'/'
+			wx = '/xcache/'+i+'/'+j+'/'
+			m = XCacheInfo(x)
+			if opt.w:
+				print '<tr>'
+				print '<th>%s</th>' % i
+				print '<th>%s</th>' % j
+				c = {'waiting':'gray', 'error':'red', \
+						'cached':'green', 'caching':'gray', 'processing':'yellow'}
+				print '<th><font color=%s>%s</font></th>' % (c[m.stat], m.stat)
+				print '<th>%s</th>' % filesize(os.path.getsize(m.short+'file'))
+				print '<th>'
+				print '<a href=%s>%s</a>' % (wx+'file'+m.ext, m.ext[1:])
+				print '</th>'
+				print '<th>%s</th>' % m.start
+				print '<th style="text-align:left;">'
+				if m.stat == 'error':
+					print m.reason 
+				if m.stat == 'cached':
+					print open(x+'seq-stat.txt').read()
+					print '<a href=%s>%s</a>' % (wx+'seq-holes.txt', 'holes')
+				print '</th>'
+				print '<th>'
+				print '<a href=%s>%s</a>' % (wx+'rsp.txt', 'rsp')
+				print '<a href=%s>%s</a>' % (wx+'req.txt', 'req')
+				print '</th>'
+				print '</tr>'
+			else:
+				print m
 	if opt.w:
 		print '</table>'
 

@@ -76,9 +76,10 @@ class XCacheURL():
 		self.u = urlparse(url)
 		self.root, self.ext = os.path.splitext(self.u.path)
 		self.basename = os.path.basename(self.u.path)
-		self.sha = hashlib.sha1(self.basename).hexdigest()[:7]
+		sha = lambda x: hashlib.sha1(x).hexdigest()[:7]
+		self.sha = sha(self.basename)
 		self.p1 = cache+self.sha+'/'
-		self.p2 = self.p1+str(random.random())
+		self.p2 = self.p1+sha(str(random.random()))+'/'
 		self.qs = parse_qs(self.u.query)
 		try:
 			self.start = float(self.qs['start'][0])

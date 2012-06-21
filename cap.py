@@ -37,6 +37,8 @@ def del_conn(m, f=None):
 	m.fp.close()
 	m.fph.close()
 	m.dump()
+	if m.stat == 'error':
+		os.system('rm -rf '+m.p2)
 	del conn[m.p2]
 
 def stat_conn():
@@ -48,7 +50,10 @@ def stat_conn():
 
 rcomp = re.compile(r'^GET (\S+) \S+\r\n')
 
-def check_request(payload, ack):
+def check_request(m, payload, ack):
+	if m is not None:
+		check_finish(m)
+		del_conn(m)
 	r = rcomp.match(payload)
 	if r is None:
 		return 

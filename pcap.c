@@ -97,12 +97,15 @@ void xcache_process_packet(u_char *p)
 			if (i >= 0)
 				*s = 0;
 			//printf("%s\n", pay);
-			char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
-			for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) 
-				if (strstr(pay, exts[i])) {
-					get = 1;
-					*s = '\r';
-				}
+			//char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
+			char *exts[] = {"flv", "mp4"};
+			if (strstr(pay, "youku")) {
+				for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) 
+					if (strstr(pay, exts[i])) {
+						get = 1;
+						*s = '\r';
+					}
+			}
 		}
 	}
 
@@ -111,19 +114,18 @@ void xcache_process_packet(u_char *p)
 		void *h2 = hash(dip, sip, dport, sport);
 		void *r1 = g_hash_table_lookup(ht, h1);
 		if (get && dport == 80) {
-			if (!r1) {
-				PyObject *r = PyObject_CallFunction(
-						py_check_request, "s#k", 
-						pay, paylen, ack
-						);
-				py_assert(r);
-				if (r != Py_None) {
-					g_hash_table_insert(ht, h1, r);
-					g_hash_table_insert(ht, h2, r);
-				}
-			} else {
-				printf("error: re GET\n");
-				exit(1);
+			if (r1) {
+				g_hash_table_remove(ht, h1);
+				g_hash_table_remove(ht, h2);
+			}
+			PyObject *r = PyObject_CallFunction(
+					py_check_request, "Os#k", 
+					r1 ? r1 : Py_None, pay, paylen, ack
+					);
+			py_assert(r);
+			if (r != Py_None) {
+				g_hash_table_insert(ht, h1, r);
+				g_hash_table_insert(ht, h2, r);
 			}
 		} else if (r1 && paylen > 0 && sport == 80) {
 			iolen += paylen;

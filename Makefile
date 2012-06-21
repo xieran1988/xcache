@@ -43,7 +43,7 @@ seq: seq.c
 	@gcc seq.c -o seq
 
 live:
-	seq=all mode=1 make netsniff
+	seq=all mode=2 make netsniff
 
 test-scap:
 	make save-scap

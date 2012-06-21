@@ -33,8 +33,12 @@ if __name__ == '__main__':
 			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/file'+m.ext, m.ext[1:])
 			print '</th>'
 			print '<th>%s</th>' % m.start
-			print '<th>'
-			print '<span>%s</span>' % (m.reason if m.stat == 'error' else '')
+			print '<th style="text-align:left;">'
+			if m.stat == 'error':
+				print m.reason 
+			if m.stat == 'cached':
+				print open(m.short+'seq-stat.txt').read()
+				print '<a href=%s>%s</a>' % ('/xcache/'+e+'/seq-holes.txt', 'holes')
 			print '</th>'
 			print '<th>'
 			print '<a href=%s>%s</a>' % ('/xcache/'+e+'/rsp.txt', 'rsp')

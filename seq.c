@@ -5,7 +5,7 @@
 int main(int argc, char *argv[])
 {
 	int clen;
-	if (argc != 3)
+	if (argc != 4)
 		return 1;
 	FILE *fp = fopen(argv[1], "r");
 	FILE *fstat= fopen(argv[2], "w+");
@@ -15,12 +15,17 @@ int main(int argc, char *argv[])
 	printf("clen=%d\n", clen);
 	char *s = (char *)malloc(clen);
 	memset(s, 0, clen);
-	int start, len, tot = 0, empty = 0;
+	static int start, len, err, tot, empty;
 	int i;
 	while (fscanf(fp, "%d%d", &start, &len) != EOF) {
-		tot += len;
-		for (i = start; i < start + len; i++)
-			s[i]++;
+		if (start + len <= clen) {
+			tot += len;
+			for (i = start; i < start + len; i++)
+				s[i]++;
+		} else {
+			err++;
+			fprintf(fholes, "(E) %d %d\n", start, len);
+		}
 	}
 	for (i = 0; i < clen; i++) {
 		if (s[i] != 1) {
@@ -34,7 +39,9 @@ int main(int argc, char *argv[])
 				empty += i-ss;
 		}
 	}
-	fprintf(fstat, "%.2lf\n", (tot-empty)*1./tot);
+	fprintf(fstat, "%.2lf%%", (tot-empty)*100./tot);
+	if (err) 
+		fprintf(fstat, " (%d E)\n", err);
 	fclose(fp);
 	fclose(fstat);
 	fclose(fholes);

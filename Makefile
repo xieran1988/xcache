@@ -1,5 +1,5 @@
 
-all: pcap
+all: live
 
 pcap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags) -DXCACHE
 
@@ -16,35 +16,43 @@ save-pcap:
 load: init
 	make test c=/root/out.pcap
 
-cp: all
-	rm -rf /usr/lib/python2.7/xcache.py
-	cp util.py /usr/lib/python2.7/xcache.py
-	ln -sf /var/lib/xcache /var/www/
-	ln -sf /usr/lib/xcache /var/www/xcache-lib
-	cp 10-xcache.conf /etc/lighttpd/conf-enabled
-	rm -rf /usr/lib/xcache/*
-	cp jmp.py cap.py dump.py web.sh /usr/lib/xcache
-	cp pcap /usr/bin/xcache-pcap
-	cp dump.py /usr/bin/xcache-proc
-	cp cut.py /usr/bin/xcache-cutflv
-	cp xcache-list /usr/bin/
-	cp xcache-clear /usr/bin/
-	cp xcache-stat /usr/bin
-	cp mod_h264_streaming.so /usr/lib/lighttpd
+cp: pcap seq
+	@rm -rf /usr/lib/python2.7/xcache.py
+	@cp util.py /usr/lib/python2.7/xcache.py
+	@ln -sf /var/lib/xcache /var/www/
+	@ln -sf /usr/lib/xcache /var/www/xcache-lib
+	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
+	@rm -rf /usr/lib/xcache/*
+	@cp jmp.py cap.py dump.py web.sh /usr/lib/xcache
+	@cp pcap /usr/bin/xcache-pcap
+	@cp dump.py /usr/bin/xcache-proc
+	@cp cut.py /usr/bin/xcache-cutflv
+	@cp xcache-list /usr/bin/
+	@cp xcache-clear /usr/bin/
+	@cp xcache-stat /usr/bin
+	@cp mod_h264_streaming.so /usr/lib/lighttpd
 
-save-scap: install 
-	cd /root/netsniff-ng/src && make && \
+netsniff: install 
+	@cd /root/netsniff-ng/src && make && \
 		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80.bpf 
+
+save-scap: 
+	make netsniff
+
+seq: seq.c
+	@gcc seq.c -o seq
+
+live:
+	seq=all mode=1 make netsniff
 
 test-scap:
 	make save-scap
 	make replay-scap
 
 replay: install
-	/etc/init.d/xcache stop
+	@/etc/init.d/xcache stop
 	make cp
-	/etc/init.d/lighttpd restart
-	gcc seq.c -o seq
+	@/etc/init.d/lighttpd restart
 	seq=all xcache-pcap $f 
 
 replay-pcap:
@@ -62,12 +70,12 @@ test-pipe:
 	./pipe
 
 init:
-	rm -rf /var/lib/xcache*
-	mkdir -p /usr/lib/xcache
-	mkdir -p /var/lib/xcache
-	mkdir -p /var/lib/xcache-log
-	cp xcache /etc/init.d
-	update-rc.d xcache defaults
+	@rm -rf /var/lib/xcache*
+	@mkdir -p /usr/lib/xcache
+	@mkdir -p /var/lib/xcache
+	@mkdir -p /var/lib/xcache-log
+	@cp xcache /etc/init.d
+	@update-rc.d xcache defaults
 
 dep:
 	cd /tmp && \
@@ -83,10 +91,9 @@ stop:
 update:
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop
 	make cp
-	/etc/init.d/lighttpd restart
+	@/etc/init.d/lighttpd restart
 
 install: init update
-
 
 test:
 	-[ -e /etc/init.d/xcache ] && /etc/init.d/xcache stop

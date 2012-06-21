@@ -14,13 +14,14 @@
 static PyObject *py_check_request;
 static PyObject *py_check_finish;
 static PyObject *py_process_packet;
+static PyObject *py_stat_conn;
 static PyObject *py_mod;
 static u_char mymac[6];
 static GHashTable *ht;
 
-static void *hash(u_int srcip, u_int dstip, u_int srcport, u_int dstport) 
+static void *hash(u_int sip, u_int dip, u_int sport, u_int dport) 
 {
-	return (void *)(srcip*31+ dstip*97+ srcport*13+ dstport*67);
+	return (void *)(sip*31+ dip*97+ sport*13+ dport*67);
 }
 
 static void py_assert(void *p)
@@ -34,35 +35,34 @@ static void py_assert(void *p)
 void xcache_process_packet(u_char *p)
 {
 	u_char *payload, *ip, *tcp, tcpflags;
-	u_int size_ip, size_tcp, totlen;
-	int size_payload;
-	u_int dstip, srcip, dstport, srcport, seq, ack;
+	u_int iplen, tcplen, totlen, plen;
+	u_int dip, sip, dport, sport, seq, ack;
 
 	ip = (u_char *)p + 14;
-	size_ip = (*ip&0x0f)*4;
-	tcp = (u_char *)p + 14 + size_ip;
+	iplen = (*ip&0x0f)*4;
+	tcp = (u_char *)p + 14 + iplen;
 	totlen = htons(*(u_short*)(ip+2));
-	size_tcp = (*(tcp+12)&0xf0)>>2;
-	srcport = htons(*(u_short*)(tcp));
-	dstport = htons(*(u_short*)(tcp+2));
-	payload = (u_char *)(p + 14 + size_ip + size_tcp);
-	srcip = *(u_int*)(ip+12);
-	dstip = *(u_int*)(ip+16);
+	tcplen = (*(tcp+12)&0xf0)>>2;
+	sport = htons(*(u_short*)(tcp));
+	dport = htons(*(u_short*)(tcp+2));
+	payload = (u_char *)(p + 14 + iplen + tcplen);
+	sip = *(u_int*)(ip+12);
+	dip = *(u_int*)(ip+16);
 	seq = htonl(*(u_int*)(tcp+4));
 	ack = htonl(*(u_int*)(tcp+8));
 	tcpflags = *(tcp+13);
-	size_payload = totlen - size_ip - size_tcp;
+	plen = totlen - iplen - tcplen;
 
 	static u_int monip = 0x22a9fd77;
 	if (0) {
-		if (dstport == 80 && !monip) {
-			monip = srcip;
+		if (dport == 80 && !monip) {
+			monip = sip;
 		}
-		if (srcip != monip && dstip != monip) 
+		if (sip != monip && dip != monip) 
 			return ;
 	}
 
-	static int io_bytes, packet_nr, totsize, syn, rst;
+	static int iolen, packet_nr, syn, rst;
 	if (1) {
 		if (tcpflags & 0x02)
 			syn++;
@@ -70,24 +70,24 @@ void xcache_process_packet(u_char *p)
 			rst++;
 		packet_nr++;
 		if (!(packet_nr % 10000)) {
-			fprintf(stderr, "%d packets monip %x syn %d rst %d %.2fM io_bytes %.2fM ht %d\n", 
-					packet_nr, monip, syn, rst,
-					totsize*1.0/1024/1024, io_bytes*1.0/1024/1024,
+			fprintf(stderr, 
+					"%d pts syn %d rst %d io %.2fM ht %d\n", 
+					packet_nr, syn, rst, iolen*1.0/1024/1024,
 					g_hash_table_size(ht)
 					);
-			totsize = 0; io_bytes = 0; syn = 0; rst = 0;
+			iolen = 0; syn = 0; rst = 0;
+			PyObject *r = PyObject_CallFunction(py_stat_conn, "");
+			py_assert(r);
 		}
-		totsize += size_payload;
 	}
 
-	int to_me = 0;
 	if (!memcmp(mymac, p, 6))
-		to_me = 1;
+		return ;
 
 	int get = 0;
 	if (1) {
-		if (size_payload > 30 && !strncmp("GET", payload, 3)) {
-			int i = size_payload;
+		if (plen > 30 && !strncmp("GET", payload, 3)) {
+			int i = plen;
 			char *s = (char *)payload;
 			while (i--) {
 				if (*s == '\r')
@@ -107,8 +107,8 @@ void xcache_process_packet(u_char *p)
 	}
 
 	if (0) {
-		void *h1 = hash(srcip, dstip, srcport, dstport);
-		void *h2 = hash(dstip, srcip, dstport, srcport);
+		void *h1 = hash(sip, dip, sport, dport);
+		void *h2 = hash(dip, sip, dport, sport);
 		void *r1 = g_hash_table_lookup(ht, h1);
 		if ((tcpflags & 0x02) && get && !r1) {
 			g_hash_table_insert(ht, h1, (void *)1);
@@ -121,20 +121,23 @@ void xcache_process_packet(u_char *p)
 	}
 
 	if (1) {
-		void *h1 = hash(srcip, dstip, srcport, dstport);
-		void *h2 = hash(dstip, srcip, dstport, srcport);
-		void *r1 = g_hash_table_lookup(ht, h1);
-		if (!r1 && get && !to_me && dstport == 80) {
-			PyObject *r = PyObject_CallFunction(py_check_request, "s#k", payload, size_payload, ack);
-			py_assert(r);
-			if (r != Py_None) {
+		PyObject_CallFunction();
+		if (get && dport == 80) {
+			PyObject *r = PyObject_CallFunction(
+					py_check_request, "Os#k", 
+					r1 ? r1 : Py_None, payload, plen, ack
+					);
+			if (r != Py_None && !r1) {
 				g_hash_table_insert(ht, h1, r);
 				g_hash_table_insert(ht, h2, r);
 			}
 		}
-		if (r1 && size_payload > 0 && srcport == 80) {
-			io_bytes += size_payload;
-			PyObject *r = PyObject_CallFunction(py_process_packet, "Os#k", r1, payload, size_payload, seq);
+		if (!get && r1 && plen > 0 && sport == 80) {
+			iolen += plen;
+			PyObject *r = PyObject_CallFunction(
+					py_process_packet, "Os#k", 
+					r1, payload, plen, seq
+					);
 			py_assert(r);
 			if (r == Py_None) {
 				g_hash_table_remove(ht, h1);
@@ -152,7 +155,8 @@ void xcache_process_packet(u_char *p)
 	}
 }
 
-static void process_pcap(u_char *args, const struct pcap_pkthdr *hdr, const u_char *p)
+static void process_pcap(u_char *args, 
+		const struct pcap_pkthdr *hdr, const u_char *p)
 {
 	xcache_process_packet((u_char *)p);
 }
@@ -169,6 +173,7 @@ void xcache_init()
 	py_check_request = PyObject_GetAttrString(py_mod, "check_request");
 	py_process_packet = PyObject_GetAttrString(py_mod, "process_packet");
 	py_check_finish = PyObject_GetAttrString(py_mod, "check_finish");
+	py_stat_conn = PyObject_GetAttrString(py_mod, "stat_conn");
 }
 
 #ifdef XCACHE

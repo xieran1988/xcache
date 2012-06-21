@@ -2,7 +2,7 @@
 
 import re, os, sys 
 import shutil, hashlib, marshal, logging, traceback, copy
-import datetime
+import datetime, random
 from urlparse import *
 from xcache import *
 from socket import *
@@ -14,29 +14,30 @@ sock = socket(AF_INET, SOCK_DGRAM)
 conn = {}
 
 def new_conn(u, payload, ack):
-	m = XCacheInfo(u.short)
+	m = XCacheInfo(u.p2)
 	m.url = u.url
 	m.start = u.start
-	m.path = u.basename
 	m.ext = u.ext
 	m.sha = u.sha
+	m.p2 = u.p2
 	m.stat = 'waiting'
-	m.fp = open(m.short+'file', 'wb+')
-	m.fph = open(m.short+'rsp.txt', 'wb+')
+	m.fp = open(m.p2+'file', 'wb+')
+	m.fph = open(m.p2+'rsp.txt', 'wb+')
 	m.ack = ack
 	m.clen = 0
 	m.seq = []
-	m.io_bytes = 0
-	open(m.short+'req.txt', 'wb+').write(payload)
+	m.iolen = 0
+	open(m.p2+'req.txt', 'wb+').write(payload)
 	stat.inc('new', 1)
 	m.dump()
+	conn[m.p2] = m
 	return m
 
 def del_conn(m, f=None):
 	m.fp.close()
 	m.fph.close()
 	m.dump()
-	del conn[m.sha]
+	del conn[m.p2]
 
 def stat_conn():
 	s = XCacheStat()
@@ -47,9 +48,7 @@ def stat_conn():
 
 rcomp = re.compile(r'^GET (\S+) \S+\r\n')
 
-def check_request(m, payload, ack):
-	if m:
-		del_conn(m)
+def check_request(payload, ack):
 	r = rcomp.match(payload)
 	if r is None:
 		return 
@@ -58,16 +57,15 @@ def check_request(m, payload, ack):
 	if u.ext not in exts:
 		return 
 	stat.inc('get.start0' if u.start == 0.0 else 'get.start1', 1)
-	if not os.path.exists(u.short):
-		os.mkdir(u.short)
-		os.symlink(u.short+'/file', u.short+'/file'+u.ext)
+	if not os.path.exists(u.p1):
+		os.mkdir(u.p1)
+	if not os.path.exists(u.p2):
+		os.mkdir(u.p2)
+		os.symlink(u.p2+'/file', u.p2+'/file'+u.ext)
 	return new_conn(u, payload, ack)
 
 def seq_append(m, s):
-	if 'seq' in os.environ and ( \
-		m.sha == os.environ['seq'] or \
-		os.environ['seq'] == 'all') \
-		:
+	if 'seq' in os.environ and os.environ['seq'] == 'all':
 		m.seq.append(s)
 
 def seq_analyze(m, s):
@@ -86,7 +84,7 @@ def check_finish(m):
 	if m.fp.tell() >= m.clen and m.stat == 'caching':
 		m.fp.truncate(m.clen)
 		m.stat = 'cached'
-		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.io_bytes, m.url
+		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.iolen, m.url
 		if len(m.seq) > 0:
 			seq_analyze(m, m.seq)
 		stat.inc('cached', 1, care=1)
@@ -95,7 +93,6 @@ def check_finish(m):
 		m.stat = 'error'
 		m.reason = 'got rst %d/%d' % (m.fp.tell(), m.clen)
 		stat.inc('error.rst', 1)
-	return del_conn(m)
 
 def check_response(m, pos, payload):
 	m.fph.write(payload)
@@ -130,22 +127,26 @@ def check_response(m, pos, payload):
 		m.dump()
 		stat.inc('caching', 1)
 		print 'CACHING', m
-		return m
 
-def process_packet(sip, dip, sport, dport, payload, get, seq):
+def process_packet(m, payload, seq, fin):
 	stat.inc('packet_bytes', len(payload))
 	stat.inc('packet_nr', 1)
 	pos = seq - m.ack
 	if m.stat == 'waiting':
-		return check_response(m, pos, payload)
-	elif m.stat == 'caching' and pos >= m.hdrlen:
+		check_response(m, pos, payload)
+	if m.stat == 'caching' and pos >= m.hdrlen:
 		stat.inc('io_bytes', len(payload))
 		stat.inc('io_packets', 1)
 		seq_append(m, (pos - m.hdrlen, len(payload)))
-		m.io_bytes += len(payload)
+		m.iolen += len(payload)
 		m.fp.seek(pos - m.hdrlen)
 		m.fp.write(payload)
-	return m
+	if fin:
+		check_finish(m)
+	if m.stat == 'cached' or m.stat == 'error':
+		del_conn(m)
+		return True
+	return False
 	#	sock.sendto(stat.dumps(), ('localhost', 1653))
 	#	stat.clear()
 

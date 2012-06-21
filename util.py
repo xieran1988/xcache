@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re, os, hashlib, marshal
+import re, os, hashlib, marshal, time, random
 from urlparse import *
 
 cache = '/var/lib/xcache/'
@@ -77,15 +77,13 @@ class XCacheURL():
 		self.root, self.ext = os.path.splitext(self.u.path)
 		self.basename = os.path.basename(self.u.path)
 		self.sha = hashlib.sha1(self.basename).hexdigest()[:7]
-		self.short = cache+'/%s/'%self.sha
+		self.p1 = cache+self.sha+'/'
+		self.p2 = self.p1+str(random.random())
 		self.qs = parse_qs(self.u.query)
-		if len(self.qs) == 0:
+		try:
+			self.start = float(self.qs['start'][0])
+		except:
 			self.start = 0.0
-		else:
-			try:
-				self.start = float(self.qs['start'][0])
-			except:
-				self.start = 0.0
 
 if __name__ == '__main__':
 	u = XCacheURL("/youku/dddddd/aaaa.flv?start=123dd")

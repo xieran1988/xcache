@@ -34,24 +34,24 @@ static void py_assert(void *p)
 
 void xcache_process_packet(u_char *p)
 {
-	u_char *payload, *ip, *tcp, tcpflags;
-	u_int iplen, tcplen, totlen, plen;
+	u_char *pay, *ip, *tcp, tcpf;
+	u_int ipaylen, tcpaylen, totlen, paylen;
 	u_int dip, sip, dport, sport, seq, ack;
 
 	ip = (u_char *)p + 14;
-	iplen = (*ip&0x0f)*4;
-	tcp = (u_char *)p + 14 + iplen;
+	ipaylen = (*ip&0x0f)*4;
+	tcp = (u_char *)p + 14 + ipaylen;
 	totlen = htons(*(u_short*)(ip+2));
-	tcplen = (*(tcp+12)&0xf0)>>2;
+	tcpaylen = (*(tcp+12)&0xf0)>>2;
 	sport = htons(*(u_short*)(tcp));
 	dport = htons(*(u_short*)(tcp+2));
-	payload = (u_char *)(p + 14 + iplen + tcplen);
+	pay = (u_char *)(p + 14 + ipaylen + tcpaylen);
 	sip = *(u_int*)(ip+12);
 	dip = *(u_int*)(ip+16);
 	seq = htonl(*(u_int*)(tcp+4));
 	ack = htonl(*(u_int*)(tcp+8));
-	tcpflags = *(tcp+13);
-	plen = totlen - iplen - tcplen;
+	tcpf = *(tcp+13);
+	paylen = totlen - ipaylen - tcpaylen;
 
 	static u_int monip = 0x22a9fd77;
 	if (0) {
@@ -62,17 +62,17 @@ void xcache_process_packet(u_char *p)
 			return ;
 	}
 
-	static int iolen, packet_nr, syn, rst;
+	static int iolen, pktnr, syn, rst;
 	if (1) {
-		if (tcpflags & 0x02)
+		if (tcpf & 0x02)
 			syn++;
-		if (tcpflags & 0x05)
+		if (tcpf & 0x05)
 			rst++;
-		packet_nr++;
-		if (!(packet_nr % 10000)) {
+		pktnr++;
+		if (!(pktnr % 10000)) {
 			fprintf(stderr, 
 					"%d pts syn %d rst %d io %.2fM ht %d\n", 
-					packet_nr, syn, rst, iolen*1.0/1024/1024,
+					pktnr, syn, rst, iolen*1.0/1024/1024,
 					g_hash_table_size(ht)
 					);
 			iolen = 0; syn = 0; rst = 0;
@@ -86,9 +86,9 @@ void xcache_process_packet(u_char *p)
 
 	int get = 0;
 	if (1) {
-		if (plen > 30 && !strncmp("GET", payload, 3)) {
-			int i = plen;
-			char *s = (char *)payload;
+		if (paylen > 30 && !strncmp("GET", pay, 3)) {
+			int i = paylen;
+			char *s = (char *)pay;
 			while (i--) {
 				if (*s == '\r')
 					break;
@@ -96,61 +96,46 @@ void xcache_process_packet(u_char *p)
 			}
 			if (i >= 0)
 				*s = 0;
-			//printf("%s\n", payload);
+			//printf("%s\n", pay);
 			char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
 			for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) 
-				if (strstr(payload, exts[i])) {
+				if (strstr(pay, exts[i])) {
 					get = 1;
 					*s = '\r';
 				}
 		}
 	}
 
-	if (0) {
+	if (1) {
 		void *h1 = hash(sip, dip, sport, dport);
 		void *h2 = hash(dip, sip, dport, sport);
 		void *r1 = g_hash_table_lookup(ht, h1);
-		if ((tcpflags & 0x02) && get && !r1) {
-			g_hash_table_insert(ht, h1, (void *)1);
-			g_hash_table_insert(ht, h2, (void *)1);
-		}
-		if (tcpflags & 0x05) {
-			g_hash_table_remove(ht, h1);
-			g_hash_table_remove(ht, h2);
-		}
-	}
-
-	if (1) {
-		PyObject_CallFunction();
 		if (get && dport == 80) {
-			PyObject *r = PyObject_CallFunction(
-					py_check_request, "Os#k", 
-					r1 ? r1 : Py_None, payload, plen, ack
-					);
-			if (r != Py_None && !r1) {
-				g_hash_table_insert(ht, h1, r);
-				g_hash_table_insert(ht, h2, r);
+			if (!r1) {
+				PyObject *r = PyObject_CallFunction(
+						py_check_request, "s#k", 
+						pay, paylen, ack
+						);
+				py_assert(r);
+				if (r != Py_None) {
+					g_hash_table_insert(ht, h1, r);
+					g_hash_table_insert(ht, h2, r);
+				}
+			} else {
+				printf("error: re GET\n");
+				exit(1);
 			}
-		}
-		if (!get && r1 && plen > 0 && sport == 80) {
-			iolen += plen;
+		} else if (r1 && paylen > 0 && sport == 80) {
+			iolen += paylen;
 			PyObject *r = PyObject_CallFunction(
-					py_process_packet, "Os#k", 
-					r1, payload, plen, seq
+					py_process_packet, "Os#kk", 
+					r1, pay, paylen, seq, tcpf&0x5
 					);
 			py_assert(r);
-			if (r == Py_None) {
+			if (r == Py_True) {
 				g_hash_table_remove(ht, h1);
 				g_hash_table_remove(ht, h2);
-				r1 = NULL;
 			}
-		}
-		if ((tcpflags & 5) && r1) {
-			PyObject *r = PyObject_CallFunction(py_check_finish, "O", r1);
-			py_assert(r);
-			g_hash_table_remove(ht, h1);
-			g_hash_table_remove(ht, h2);
-			Py_DECREF(r1);
 		}
 	}
 }

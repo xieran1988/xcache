@@ -45,6 +45,9 @@ seq: seq.c
 live:
 	seq=all mode=2 make netsniff
 
+live-pcap: install
+	seq=all xcache-pcap
+
 test-scap:
 	make save-scap
 	make replay-scap

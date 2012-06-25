@@ -12,9 +12,9 @@
 
 do_start()
 {
-	log_daemon_msg "Starting Xcache Pcap daemon" xcache-pcap
+	log_daemon_msg "Starting Xcache Pcap daemon" xcache-cap
 	if ! start-stop-daemon --start --oknodo -b -m --quiet \
-		--pidfile /var/run/xcache-pcap.pid --exec /usr/bin/xcache-pcap 
+		--pidfile /var/run/xcache-cap.pid --exec /usr/bin/xcache-cap 
 	then
 		log_end_msg 1
 	else
@@ -33,11 +33,11 @@ do_start()
 
 do_stop()
 {
-	log_daemon_msg "Stopping Xcache Pcap daemon" xcache-pcap
+	log_daemon_msg "Stopping Xcache Pcap daemon" xcache-cap
 	if start-stop-daemon --stop --oknodo -s 9 --quiet \
-		--pidfile /var/run/xcache-pcap.pid --exec /usr/bin/xcache-pcap
+		--pidfile /var/run/xcache-cap.pid --exec /usr/bin/xcache-cap
 	then
-			rm -f /var/run/xcache-pcap.pid 
+			rm -f /var/run/xcache-cap.pid 
 			log_end_msg 0
 	else
 			log_end_msg 1
@@ -66,7 +66,7 @@ case "$1" in
 				do_start
 				;;
     status)
-        status_of_proc -p /var/run/xcache-pcap.pid /usr/lib/xcache-pcap xcache-pcap && exit 0 || exit $?
+        status_of_proc -p /var/run/xcache-cap.pid /usr/lib/xcache-cap xcache-cap && exit 0 || exit $?
         ;;
     *)
         echo "Usage: /etc/init.d/xcache {start|stop|restart|status}" >&2

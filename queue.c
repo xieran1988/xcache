@@ -47,6 +47,13 @@ void xinit()
 {
 	if (getenv("mode")) 
 		mode = atoi(getenv("mode"));
+	
+	switch (mode) {
+	case 0: printf("mode=live\n"); break;
+	case 1: printf("mode=dump\n"); break;
+	case 2: printf("mode=queue\n"); break;
+	default: break;
+	}
 
 	xcache_init();
 
@@ -58,7 +65,10 @@ void xinit()
 
 int xproc(void *p, int len)
 {
-	if (mode == 0) {
+	if (mode == 0)
+		xcache_process_packet(p);
+
+	if (mode == 1) {
 		if (pt - buf > sizeof(buf)-1024*1024)
 			return 1;
 		if (len > 2000) {
@@ -69,9 +79,6 @@ int xproc(void *p, int len)
 		memcpy(pt + sizeof(int), p, len);
 		pt += sizeof(int) + len;
 	}
-
-	if (mode == 1)
-		xcache_process_packet(p);
 
 	if (mode == 2) {
 		if (ql == QSIZE) {
@@ -97,7 +104,7 @@ int xproc(void *p, int len)
 
 void xexit()
 {
-	if (mode == 0) {
+	if (mode == 1) {
 		FILE *fp = fopen("/root/out.scap", "wb+");
 		fwrite(buf, 1, pt - buf, fp);
 		fflush(fp);

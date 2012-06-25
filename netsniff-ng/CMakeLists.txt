@@ -51,8 +51,8 @@ IF (CMAKE_HAVE_PTHREAD_CREATE AND LIBNL_FOUND)
 					../ring_tx.c
 					../mtrand.c
 					../tprintf.c
-					../xcache_pcap.c
-					../xcache.c
+					../xcache_cap.c
+					../xcache_queue.c
 					../netsniff-ng.c)
 	ADD_DEFINITIONS(-DPROGNAME_STRING="${PROJECT_NAME}"
 		-DVERSION_STRING="${VERSION}"

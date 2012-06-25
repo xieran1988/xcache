@@ -21,7 +21,30 @@
 #include <linux/if_packet.h>
 #include <poll.h>
 
-int main(int argc, char *argv[])
+int xproc(void *, int);
+
+static int process(void *p, int len)
+{
+	uint8_t *ip, *tcp;
+	uint32_t iplen, dport, sport;
+
+	if (*(uint16_t*)((char*)p+12)!=8)
+		return 0;
+	ip = (uint8_t *)p+14;
+	if (ip[9]!=6)
+		return 0;
+	iplen = (*ip&0x0f)*4;
+	tcp = (uint8_t *)p+14+iplen;
+	sport = htons(*(uint16_t*)(tcp));
+	dport = htons(*(uint16_t*)(tcp+2));
+	if (sport!=80&&dport!=80)
+		return 0;
+	if (xproc(p, len)) 
+		return 1;
+	return 0;
+}
+
+void raw_loop()
 {
 	int fd;
 	struct sockaddr_ll sa;
@@ -54,7 +77,7 @@ int main(int argc, char *argv[])
 	memset(&mr,0,sizeof(mr));
 	mr.mr_ifindex = ifr.ifr_ifindex;
 	mr.mr_type = PACKET_MR_PROMISC;
-	i = setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,&mr,sizeof(mr));
+	i = setsockopt(fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
 	printf("setsockopt=%d\n", i);
 
 	int n = 0;
@@ -65,21 +88,8 @@ int main(int argc, char *argv[])
 			printf("error %d\n", len);
 			exit(1);
 		}
-		if (*(unsigned short *)(buf + 12) != 0x8) 
-			continue;
-		if (buf[23] == 0x84) {
-			if (*(unsigned short *)(buf + 20) & 0xff1f) {
-				continue;
-			} else {
-				int x = (buf[14]&0xf)*4;
-				printf("%x\n", *(unsigned short *)(buf + 14));
-			}
-		} 
-		n++;
-		if (!(n % 150000)) {
-			printf("n=%d\n", n);
-		}
-
+		if (process(buf, len))
+			break;
 	//	printf("%d\n", len);
 		/*
 		pfd.fd = fd;
@@ -94,7 +104,5 @@ int main(int argc, char *argv[])
 		}
 		*/
 	}
-
-	return 0;
 }
 

@@ -70,7 +70,7 @@ def check_request(m, payload, ack):
 	return new_conn(u, payload, ack)
 
 def seq_append(m, s):
-	if 'seq' in os.environ and os.environ['seq'] == 'all':
+#	if 'seq' in os.environ and os.environ['seq'] == 'all':
 		m.seq.append(s)
 
 def seq_analyze(m, s):

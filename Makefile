@@ -1,5 +1,5 @@
 
-all: init install
+all: install
 
 cap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
 
@@ -11,12 +11,18 @@ xcache-cap: cap.o queue.o main.o raw.o
 seq: seq.c
 	@gcc seq.c -o seq
 
+sum-seq:
+	./sumseq | grep tot
+
 run-netsniff: install 
 	@cd /root/netsniff-ng/src && make && \
-		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80.bpf 
+		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80-2.bpf 
 
 queue-netsniff:
-	seq=all mode=2 make run-netsniff
+	mode=2 make run-netsniff
+
+direct-netsniff:
+	make run-netsniff
 
 save-netsniff:
 	mode=1 make run-netsniff
@@ -72,7 +78,7 @@ cp: xcache-cap seq
 	@cp xcache-* /usr/bin/
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
 
-install: cp
+install: init cp
 	@/etc/init.d/lighttpd restart
 
 dep:

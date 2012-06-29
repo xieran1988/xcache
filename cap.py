@@ -82,7 +82,7 @@ def seq_analyze(m, s):
 	os.system( \
 			'/root/xcache/seq \
 			%s/seq.txt %s/seq-stat.txt %s/seq-holes.txt \
-			> /dev/null' % (m.short, m.short, m.short) \
+			> /dev/null & ' % (m.short, m.short, m.short) \
 			)
 
 def check_finish(m):
@@ -122,9 +122,9 @@ def check_response(m, pos, payload):
 		g = re.match(r"^Content-Length:\s*(\d+)", l)
 		if g is not None:
 			m.clen = int(g.groups()[0])
-	if l == '\r\n' and m.clen > 0:
+	if l == '\r\n' and m.clen > 1000*1024:
 		m.stat = 'caching'
-		m.fp.truncate(m.clen)
+		#m.fp.truncate(m.clen)
 		m.hdrlen = pos + f.tell()
 		m.rsplen = len(payload)
 		seq_append(m, (0, len(payload[f.tell():])))

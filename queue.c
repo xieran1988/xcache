@@ -18,7 +18,7 @@ int qt, qh, ql;
 static sem_t sem;
 
 void xcache_init();
-void xcache_process_packet(void *);
+void xcache_process_packet(void *, int);
 
 static int mode;
 
@@ -66,7 +66,7 @@ void xinit()
 int xproc(void *p, int len)
 {
 	if (mode == 0)
-		xcache_process_packet(p);
+		xcache_process_packet(p, len);
 
 	if (mode == 1) {
 		if (pt - buf > sizeof(buf)-1024*1024)

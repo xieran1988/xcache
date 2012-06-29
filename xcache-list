@@ -45,6 +45,9 @@ if __name__ == '__main__':
 				if m.stat == 'cached':
 					print open(x+'seq-stat.txt').read()
 					print '<a href=%s>%s</a>' % (wx+'seq-holes.txt', 'holes')
+				if m.stat == 'caching':
+					fs = os.path.getsize(m.short+'file')
+					#print '%s %.2f%%' % (filesize(fs), fs*1./m.clen)
 				print '</th>'
 				print '<th>'
 				print '<a href=%s>%s</a>' % (wx+'rsp.txt', 'rsp')

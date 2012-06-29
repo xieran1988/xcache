@@ -35,9 +35,9 @@ static int process(void *p, int len)
 		return 0;
 	iplen = (*ip&0x0f)*4;
 	tcp = (uint8_t *)p+14+iplen;
-	sport = htons(*(uint16_t*)(tcp));
-	dport = htons(*(uint16_t*)(tcp+2));
-	if (sport!=80&&dport!=80)
+	sport = *(uint16_t*)(tcp);
+	dport = *(uint16_t*)(tcp+2);
+	if (sport!=0x5000&&dport!=0x5000)
 		return 0;
 	if (xproc(p, len)) 
 		return 1;

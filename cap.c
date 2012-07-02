@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <glib.h> 
+#include <time.h> 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -20,81 +21,128 @@
 #include <linux/if_packet.h>
 #include <poll.h>
 
-static PyObject *py_check_request;
-static PyObject *py_check_finish;
-static PyObject *py_process_packet;
-static PyObject *py_stat_conn;
-static PyObject *py_mod;
 static GHashTable *ht;
 char mymac[6];
 
-static void *hash(
-		uint32_t sip, uint32_t dip, 
-		uint32_t sport, uint32_t dport
-		) 
+static void *hash(uint32_t sip, uint32_t dip, uint32_t sport, uint32_t dport) 
 {
 	return (void *)(sip*31+ dip*97+ sport*13+ dport*67);
 }
 
-static void py_assert(void *p)
-{
-	if (!p) {
-		PyErr_Print();
-		exit(1);
-	}
-}
+typedef struct {
+	int start, end;
+} sec_t;
 
 typedef struct {
 	int ack, hdrlen, id;
-	int pos;
+	int curpos, nextpos, dup, hole;
+	int clen;
+	sec_t sec[128];
+	int nsec, toomanysec, io, cont;
 	FILE *seq;
 	char stat;
+	int rank;
+	int s_io;
 } conn_t ;
 
 static void conn_del(conn_t *c, void *h1)
 {
 	g_hash_table_remove(ht, h1);
-	fclose(c->seq);
 	free(c);
+}
+
+static void sec_add(conn_t *c, int start, int len)
+{
+	int i, end = start + len;
+	c->io += len;
+	c->s_io += len;
+	for (i = 0; i < c->nsec; i++) {
+		if (c->sec[i].start <= start && c->sec[i].end >= end)
+			return ;
+	}
+	for (i = 0; i < c->nsec; i++) {
+		if (c->sec[i].end == start) {
+			c->sec[i].end = end;
+			return ;
+		}
+		if (c->sec[i].start == end) {
+			c->sec[i].start = start;
+			return ;
+		}
+	}
+	if (c->nsec >= sizeof(c->sec)/sizeof(c->sec[0])) {
+		c->toomanysec = 1;
+		return ;
+	}
+	c->sec[c->nsec].start = start;
+	c->sec[c->nsec].end = end;
+	c->nsec++;
+}
+
+static void sec_sumup(conn_t *c) 
+{
+	int i;
+	for (i = 1; i < c->nsec; i++) {
+		if (c->sec[i].start != c->sec[i-1].end)
+			return ;
+	}
+	c->cont = 1;
+}
+
+static int ptotlen, validlen, iolen, io0;
+
+static void checkio(void *key, void *val, void *user)
+{
+	conn_t *c = (conn_t *)val;
+	if (c->s_io == 0)
+		io0++;
+	c->s_io = 0;
+}
+
+static void conn_finish(conn_t *c, void *h1)
+{
+	static int cached;
+	io0 = 0;
+	g_hash_table_foreach(ht, checkio, 0);
+	if (c->stat == 'c') {
+		//fprintf(c->seq, "-1 -1\n");
+		//fflush(c->seq);
+		cached++;
+		sec_sumup(c);
+		printf("cached %.2lfM ht=%d valid=%.2lf%%\t", 
+					c->clen*1./1024/1024, g_hash_table_size(ht), validlen*100./ptotlen
+					);
+		iolen = 0;
+		validlen = ptotlen = 0;
+		if (c->clen - c->nextpos == 0) 
+			printf("complete\n");
+		else {
+			if (c->io < c->clen) 
+				printf("rst after %.2lfM", c->io/1024./1024);
+			else {
+				if (c->cont) {
+					if (c->sec[c->nsec-1].end >= c->clen)
+						printf("complete ");
+					else {
+						printf("rst after %.2lfM ", c->sec[c->nsec-1].end/1024./1024);
+					}
+				} else
+					printf("hole ");
+				printf("nsec=%d dup=%d end=%.2lfM", c->nsec, c->io - c->clen, c->sec[c->nsec-1].end/1024./1024);
+			}
+		}
+		printf("\n");
+		conn_del(c, h1);
+	}
 }
 
 void xcache_process_packet(uint8_t *p, int plen)
 {
-
-	uint8_t *pay, *ip, *tcp, tcpf;
+	char *pay;
+	uint8_t *ip, *tcp, tcpf;
 	uint32_t iplen, tcplen, totlen, paylen;
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
-
-//	struct iphdr *ih;
-//	struct tcphdr *th;
-//	struct ether_header *ethhdr;
-
-//	if (plen < sizeof(struct ether_header))
-//		return;
-//
-//	ethhdr = (struct ether_header*)p;
-//	if (ethhdr->ether_type != htons(ETHERTYPE_IP))
-//		return;	
-//
-//	p += sizeof(struct ether_header);
-//	plen -= sizeof(struct ether_header);
-//
-//	if (plen < sizeof(struct iphdr))
-//		return;
-//
-//	ih = (struct iphdr*)p;
-//	if (ih->proto != IPPROTO_IP)
-//		return;
-//
-//	p += ih->ihl << 2;
-//	plen -= ih->ihl << 2;
-//
-//	if (plen < sizeof(struct tcphdr))
-//		return;
-//
-//	th = (struct tcphdr*)p
-	
 
 	ip = (uint8_t *)p + 14;
 	iplen = (*ip&0x0f)*4;
@@ -110,35 +158,6 @@ void xcache_process_packet(uint8_t *p, int plen)
 	ack = htonl(*(uint32_t*)(tcp+8));
 	tcpf = *(tcp+13);
 	paylen = totlen - iplen - tcplen;
-		static uint32_t monip = 0x22a9fd77;
-	if (0) {
-		if (dport == 80 && !monip) {
-			monip = sip;
-		}
-		if (sip != monip && dip != monip) 
-			return ;
-	}
-
-	static int iolen, pktnr, syn, rst;
-	if (1) {
-		if (tcpf & 0x02)
-			syn++;
-		if (tcpf & 0x05)
-			rst++;
-		pktnr++;
-		if (!(pktnr % 10000)) {
-			//FILE *fp = fopen("/var/lib/xcache-log/cap-stat", "w+");
-			fprintf(stdout, 
-					"%d pts syn %d rst %d io %.2fM ht %d\n", 
-					pktnr, syn, rst, iolen*1.0/1024/1024,
-					g_hash_table_size(ht)
-					);
-			//fclose(fp);
-			iolen = 0; syn = 0; rst = 0;
-//			PyObject *r = PyObject_CallFunction(py_stat_conn, "");
-//			py_assert(r);
-		}
-	}
 
 	if (!memcmp(mymac, p, 6))
 		return ;
@@ -169,7 +188,6 @@ void xcache_process_packet(uint8_t *p, int plen)
 		}
 	}
 
-#if 1
 	do {
 		int i;
 		void *h1 = dport == 80 ? 
@@ -177,15 +195,19 @@ void xcache_process_packet(uint8_t *p, int plen)
 		conn_t *c = (conn_t *)g_hash_table_lookup(ht, h1);
 		char *cache = "/var/lib/xcache";
 		char path[512];
+		ptotlen += plen;
+		if (c || get)
+			validlen += plen;
 		if (get) {
-			if (c)
-				conn_del(c, h1);
+			if (c) 
+				conn_finish(c, h1);
 			c = (conn_t *)malloc(sizeof(*c));
+			memset(c, 0, sizeof(*c));
 			c->ack = (int)ack;
 			c->stat = 'w';
 			c->id = rand();
-			sprintf(path, "%s/%d.txt", cache, c->id);
-			c->seq = fopen(path, "w+");
+			//sprintf(path, "%s/%d.txt", cache, c->id);
+			//c->seq = fopen(path, "w+");
 			g_hash_table_insert(ht, h1, c);
 		}
 		if (c && paylen > 0 && sport == 80) {
@@ -220,66 +242,35 @@ void xcache_process_packet(uint8_t *p, int plen)
 					c->stat = 'c';
 					c->hdrlen = s + 4 - (char *)pay;
 					pay[paylen-1] = ch;
-					fprintf(c->seq, "%d\n", clen); 
-					fprintf(c->seq, "%d %d\n", 0, paylen - c->hdrlen); 
-					fflush(c->seq);
+					c->clen = clen;
+					c->curpos = 0;
+					c->nextpos = paylen - c->hdrlen;
+					sec_add(c, 0, paylen - c->hdrlen);
+					//fprintf(c->seq, "%d\n", clen); 
+					//fprintf(c->seq, "%d %d\n", 0, paylen - c->hdrlen); 
+					//fflush(c->seq);
 				}
 			} else {
+				pos -= c->hdrlen;
 				if (c->stat == 'c') {
-					fprintf(c->seq, "%d %d\n", pos - c->hdrlen, paylen); 
-					fflush(c->seq);
+					sec_add(c, pos, paylen);
+					if (pos != c->nextpos) {
+						c->hole++;
+					} else 
+						c->nextpos += paylen;
+					//c->curpos = pos;
+					//c->nextpos = pos + paylen;
+					//fprintf(c->seq, "%d %d\n", pos - c->hdrlen, paylen); 
+					//fflush(c->seq);
 				}
 			}
 		}
-		static int cached;
 		if (c && (tcpf & 5)) {
-			if (c->stat == 'c') {
-				fprintf(c->seq, "-1 -1\n");
-				fflush(c->seq);
-				conn_del(c, h1);
-				cached++;
-				//if (cached >= 15)
-				//	exit(1);
-				fprintf(stdout, "cached %d\n", cached);
-				char cmd[512];
-				sprintf(cmd, "seq2=1 /root/xcache/seq %s/%d.txt", cache, c->id);
-				system(cmd);
-			}
+			conn_finish(c, h1);
 		}
 	} while (0);
-	return ;
-#endif
 
-	if (1) {
-		void *h1 = hash(sip, dip, sport, dport);
-		void *h2 = hash(dip, sip, dport, sport);
-		void *r1 = g_hash_table_lookup(ht, h1);
-		if (get && dport == 80) {
-			if (r1) {
-				g_hash_table_remove(ht, h1);
-				g_hash_table_remove(ht, h2);
-			}
-			PyObject *r = PyObject_CallFunction(
-					py_check_request, "Os#k", 
-					r1 ? r1 : Py_None, pay, paylen, ack
-					);
-			py_assert(r);
-			if (r != Py_None) {
-				g_hash_table_insert(ht, h1, r);
-				g_hash_table_insert(ht, h2, r);
-			}
-		} else if (r1 && paylen > 0 && sport == 80) {
-			iolen += paylen;
-			PyObject *r = PyObject_CallFunction(
-					py_process_packet, "Os#kk", 
-					r1, pay, paylen, seq, tcpf&0x5
-					);
-			py_assert(r);
-			if (r == Py_True) {
-				g_hash_table_remove(ht, h1);
-				g_hash_table_remove(ht, h2);
-			}
-		}
+	if (iolen > 1024*1024*20) {
 	}
 }
 
@@ -287,21 +278,13 @@ void xcache_init()
 {
 	ht = g_hash_table_new(g_direct_hash, g_direct_equal);
 
+	setbuf(stdout,NULL); 
+
 	struct ifreq ifr;
 	int fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	ifr.ifr_addr.sa_family = AF_INET;
 	strncpy(ifr.ifr_name, "eth1", IFNAMSIZ-1);
 	ioctl(fd, SIOCGIFHWADDR, &ifr);
 	memcpy(mymac, ifr.ifr_hwaddr.sa_data, 6);
-
-	Py_Initialize();
-	PyRun_SimpleString("import sys");
-	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
-	py_mod = PyImport_ImportModule("cap");
-	py_assert(py_mod);
-	py_check_request = PyObject_GetAttrString(py_mod, "check_request");
-	py_process_packet = PyObject_GetAttrString(py_mod, "process_packet");
-	py_check_finish = PyObject_GetAttrString(py_mod, "check_finish");
-	py_stat_conn = PyObject_GetAttrString(py_mod, "stat_conn");
 }
 

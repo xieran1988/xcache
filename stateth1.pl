@@ -2,7 +2,7 @@
 while (1) {
 	$a = int(`cat /proc/net/dev | grep eth1 | awk '{print \$2}'`);
 	$b = ($a - $last)/1024./1024;
-	printf "%.2fM bytes/s\n", $b if $last;
+	printf "%.2fMb/s\n", $b*8 if $last;
 	$last = $a;
 
 	$a1 = int(`cat /proc/net/dev | grep eth1 | awk '{print \$3}'`);

@@ -45,29 +45,30 @@ static void py_assert(void *p)
 }
 
 typedef struct {
-	int ack, hdrlen;
+	int ack, hdrlen, id;
+	int pos;
 	FILE *seq;
 	char stat;
 } conn_t ;
 
-static void conn_del(conn_t *c, void *h1, void *h2)
+static void conn_del(conn_t *c, void *h1)
 {
 	g_hash_table_remove(ht, h1);
-	g_hash_table_remove(ht, h2);
 	fclose(c->seq);
 	free(c);
 }
 
 void xcache_process_packet(uint8_t *p, int plen)
 {
-	struct iphdr *ih;
-	struct tcphdr *th;
-	struct ether_header *ethhdr;
 
 	uint8_t *pay, *ip, *tcp, tcpf;
 	uint32_t iplen, tcplen, totlen, paylen;
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
+
+//	struct iphdr *ih;
+//	struct tcphdr *th;
+//	struct ether_header *ethhdr;
 
 //	if (plen < sizeof(struct ether_header))
 //		return;
@@ -109,7 +110,6 @@ void xcache_process_packet(uint8_t *p, int plen)
 	ack = htonl(*(uint32_t*)(tcp+8));
 	tcpf = *(tcp+13);
 	paylen = totlen - iplen - tcplen;
-	if (p)
 		static uint32_t monip = 0x22a9fd77;
 	if (0) {
 		if (dport == 80 && !monip) {
@@ -166,26 +166,27 @@ void xcache_process_packet(uint8_t *p, int plen)
 				}
 				*s = '\r';
 			}
+		}
 	}
 
 #if 1
 	do {
 		int i;
-		void *h1 = hash(sip, dip, sport, dport);
-		void *h2 = hash(dip, sip, dport, sport);
+		void *h1 = dport == 80 ? 
+			hash(sip, dip, sport, dport) : hash(dip, sip, dport, sport);
 		conn_t *c = (conn_t *)g_hash_table_lookup(ht, h1);
 		char *cache = "/var/lib/xcache";
 		char path[512];
 		if (get) {
 			if (c)
-				conn_del(c, h1, h2);
+				conn_del(c, h1);
 			c = (conn_t *)malloc(sizeof(*c));
 			c->ack = (int)ack;
 			c->stat = 'w';
-			sprintf(path, "%s/%d.txt", cache, rand());
+			c->id = rand();
+			sprintf(path, "%s/%d.txt", cache, c->id);
 			c->seq = fopen(path, "w+");
 			g_hash_table_insert(ht, h1, c);
-			g_hash_table_insert(ht, h2, c);
 		}
 		if (c && paylen > 0 && sport == 80) {
 			int pos = (int)seq - c->ack;
@@ -194,12 +195,12 @@ void xcache_process_packet(uint8_t *p, int plen)
 			if (pos == 0) {
 				pay[paylen-1] = 0;
 				if (!strstr(pay, "200")) {
-					conn_del(c, h1, h2);
+					conn_del(c, h1);
 					break ;
 				}
 				char *s = strstr(pay, "Content-Length:");
 				if (!s) {
-					conn_del(c, h1, h2);
+					conn_del(c, h1);
 					break ;
 				}
 				s += strlen("Content-Length:");
@@ -207,12 +208,12 @@ void xcache_process_packet(uint8_t *p, int plen)
 					s++;
 				int clen = atoi(s);
 				if (clen < 1000*1024) {
-					conn_del(c, h1, h2);
+					conn_del(c, h1);
 					break;
 				}
 				s = strstr(pay, "\r\n\r\n");
 				if (!s) {
-					conn_del(c, h1, h2);
+					conn_del(c, h1);
 					break;
 				}
 				if (c->stat == 'w') {
@@ -235,11 +236,14 @@ void xcache_process_packet(uint8_t *p, int plen)
 			if (c->stat == 'c') {
 				fprintf(c->seq, "-1 -1\n");
 				fflush(c->seq);
-				conn_del(c, h1, h2);
+				conn_del(c, h1);
 				cached++;
-				if (cached >= 15)
-					exit(1);
+				//if (cached >= 15)
+				//	exit(1);
 				fprintf(stdout, "cached %d\n", cached);
+				char cmd[512];
+				sprintf(cmd, "seq2=1 /root/xcache/seq %s/%d.txt", cache, c->id);
+				system(cmd);
 			}
 		}
 	} while (0);

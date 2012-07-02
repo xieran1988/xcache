@@ -31,7 +31,7 @@ static void *thread()
 			char *p = q->buf;
 			while (p < q->buf + q->len) {
 				int len = *(int *)p;
-				xcache_process_packet(p + sizeof(int));
+				xcache_process_packet(p + sizeof(int), len);
 				p += sizeof(int) + len;
 			}
 			q->len = 0;

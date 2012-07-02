@@ -65,14 +65,14 @@ int main(int argc, char *argv[])
 				i++;
 			if (fholes)
 				fprintf(fholes, "(%d) %d %d\n", p, ss, i-ss);
-			i--;
 			if (p == 0)
 				empty += i-ss;
+			i--;
 		}
 	}
 	
 	if (getenv("seq2")) {
-		printf("tot %s %d %d\n", rst ? "done" : "int", clen, empty);
+		printf("tot %s %d %d %.2lf%%\n", rst ? "rst" : "non-rst", clen, empty, (clen-empty)*100./clen);
 	}
 
 	if (fstat) {

@@ -8,6 +8,7 @@ sub bit { @_[0]*8./1024/1024 }
 
 while (<>) {
 	chomp;
+	next until ~ /^s_/;
 	($c, @a) = split / /;
 	if ($c eq 's_cached') {
 		$hc{$a[2]}++;
@@ -16,8 +17,9 @@ while (<>) {
 		($t, $tot, $valid, $io, $ht, $io0) = @a;
 		if ($lasttm) {
 			$e = $t - $lasttm;
-			printf "{%.2lf %.2lf %.2lf %d %d %d %d %d}\n",
-				$e, bit($tot/$e), bit($valid/$e), bit($io/$e),
+			printf "{tot:%.2lf, valid:%.2lf, io:%.2lf, ".
+				"complete:%d, rst:%d, hole:%d, ht:%d, io0:%d}\n",
+				bit($tot/$e), bit($valid/$e), bit($io/$e),
 				$hc{complete}, $hc{rst}, $hc{hole}, $ht, $io0
 				;
 			%hc = ();

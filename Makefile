@@ -5,6 +5,7 @@ cap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
 
 xcache-cap: cap.o queue.o main.o raw.o
 	gcc -o $@ $^ \
+		-lpthread \
 		$(shell pcap-config --libs) \
 		$(shell pkg-config python glib-2.0 --libs)
 

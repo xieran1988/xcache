@@ -21,34 +21,32 @@
 #include <linux/if_packet.h>
 #include <poll.h>
 
-static GHashTable *ht;
-char mymac[6];
-
-static void *hash(uint32_t sip, uint32_t dip, uint32_t sport, uint32_t dport) 
-{
-	return (void *)(sip*31+ dip*97+ sport*13+ dport*67);
-}
-
 typedef struct {
 	int start, end;
 } sec_t;
 
 typedef struct {
 	int ack, hdrlen, id;
-	int curpos, nextpos, dup, hole;
+	int curpos, nextpos;
 	int clen;
 	sec_t sec[128];
-	int nsec, toomanysec, io, cont;
+	int nsec, io, cont;
 	FILE *seq;
 	char stat;
-	int rank;
+	char *_s;
 	int s_io;
+	int _used;
+	void *_hash;
 } conn_t ;
 
-static void conn_del(conn_t *c, void *h1)
+#define MAX_CONN 128
+conn_t conns[MAX_CONN];
+
+static int s_totlen, s_validlen, s_iolen;
+
+static void *hash(uint32_t sip, uint32_t dip, uint32_t sport, uint32_t dport) 
 {
-	g_hash_table_remove(ht, h1);
-	free(c);
+	return (void *)(sip*31+ dip*97+ sport*13+ dport*67);
 }
 
 static void sec_add(conn_t *c, int start, int len)
@@ -70,10 +68,8 @@ static void sec_add(conn_t *c, int start, int len)
 			return ;
 		}
 	}
-	if (c->nsec >= sizeof(c->sec)/sizeof(c->sec[0])) {
-		c->toomanysec = 1;
+	if (c->nsec >= sizeof(c->sec)/sizeof(c->sec[0])) 
 		return ;
-	}
 	c->sec[c->nsec].start = start;
 	c->sec[c->nsec].end = end;
 	c->nsec++;
@@ -89,53 +85,120 @@ static void sec_sumup(conn_t *c)
 	c->cont = 1;
 }
 
-static int ptotlen, validlen, iolen, io0;
-
-static void checkio(void *key, void *val, void *user)
+static conn_t *conn_new(void)
 {
-	conn_t *c = (conn_t *)val;
-	if (c->s_io == 0)
-		io0++;
-	c->s_io = 0;
+	int i;
+	for (i = 0; i < MAX_CONN; i++)
+		if (!conns[i]._used) {
+			conns[i]._used++;
+			return &conns[i];
+		}
+	return NULL;
 }
 
-static void conn_finish(conn_t *c, void *h1)
+static conn_t *conn_lookup(void *h)
 {
-	static int cached;
-	io0 = 0;
-	g_hash_table_foreach(ht, checkio, 0);
+	int i;
+	for (i = 0; i < MAX_CONN; i++) 
+		if (conns[i]._used && conns[i]._hash == h)
+			return &conns[i];
+	return NULL;
+}
+
+static void conn_del(conn_t *c)
+{
+	c->_used = 0;
+}
+
+static int conn_count(void)
+{
+	int c = 0, i;
+	for (i = 0; i < MAX_CONN; i++) 
+		c += !!conns[i]._used;
+	return c;
+}
+
+static void conn_finish(conn_t *c)
+{
 	if (c->stat == 'c') {
-		//fprintf(c->seq, "-1 -1\n");
-		//fflush(c->seq);
+		static int cached;
 		cached++;
 		sec_sumup(c);
-		printf("cached %.2lfM ht=%d valid=%.2lf%%\t", 
-					c->clen*1./1024/1024, g_hash_table_size(ht), validlen*100./ptotlen
-					);
-		iolen = 0;
-		validlen = ptotlen = 0;
-		if (c->clen - c->nextpos == 0) 
-			printf("complete\n");
+		printf("cached %d %d %d ", c->clen, c->io, conn_count());
+		if (c->clen - c->nextpos == 0)
+			printf("complete");
 		else {
 			if (c->io < c->clen) 
-				printf("rst after %.2lfM", c->io/1024./1024);
+				printf("rst %d", c->io);
 			else {
 				if (c->cont) {
 					if (c->sec[c->nsec-1].end >= c->clen)
 						printf("complete ");
 					else {
-						printf("rst after %.2lfM ", c->sec[c->nsec-1].end/1024./1024);
+						printf("rst %d", c->sec[c->nsec-1].end);
 					}
 				} else
 					printf("hole ");
-				printf("nsec=%d dup=%d end=%.2lfM", c->nsec, c->io - c->clen, c->sec[c->nsec-1].end/1024./1024);
+				printf("%d %d %d", c->nsec, c->io-c->clen, c->sec[c->nsec-1].end);
 			}
 		}
 		printf("\n");
-		conn_del(c, h1);
+		conn_del(c);
 	}
 }
 
+static int valid_get(char *pay, int paylen)
+{
+	int i = paylen;
+	char *s = (char *)pay;
+	while (i--) {
+		if (*s == '\r')
+			break;
+		s++;
+	}
+	if (i >= 0) {
+		*s = 0;
+		char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
+		//char *exts[] = {"flv", "mp4"};
+		//if (strstr(pay, "youku")) {
+		for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) {
+			if (strstr(pay, exts[i])) {
+				return 1;
+			}
+		}
+		*s = '\r';
+	}
+	return 0;
+}
+
+static int valid_rsp(char *pay, int paylen, conn_t *c)
+{
+	int valid = 0;
+	char ch = pay[paylen-1];
+	pay[paylen-1] = 0;
+	if (!strstr(pay, "200")) 
+		goto fail;
+	char *s = strstr(pay, "Content-Length:");
+	if (!s) 
+		goto fail;
+	s += strlen("Content-Length:");
+	while (*s == ' ')
+		s++;
+	int clen = atoi(s);
+	if (clen < 1000*1024) 
+		goto fail;
+	s = strstr(pay, "\r\n\r\n");
+	if (!s) 
+		goto fail;
+	valid = 1;
+	c->_s = s;
+	c->clen = clen;
+fail:
+	pay[paylen-1] = ch;
+	return valid;
+}
+
+void xcache_process_packet(uint8_t *p, int plen);
 void xcache_process_packet(uint8_t *p, int plen)
 {
 	char *pay;
@@ -151,7 +214,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 	tcplen = (*(tcp+12)&0xf0)>>2;
 	sport = htons(*(uint16_t*)(tcp));
 	dport = htons(*(uint16_t*)(tcp+2));
-	pay = (uint8_t *)(p + 14 + iplen + tcplen);
+	pay = (char *)(p + 14 + iplen + tcplen);
 	sip = *(uint32_t*)(ip+12);
 	dip = *(uint32_t*)(ip+16);
 	seq = htonl(*(uint32_t*)(tcp+4));
@@ -159,132 +222,66 @@ void xcache_process_packet(uint8_t *p, int plen)
 	tcpf = *(tcp+13);
 	paylen = totlen - iplen - tcplen;
 
-	if (!memcmp(mymac, p, 6))
-		return ;
+	int get = 
+		(dport == 80 && paylen > 3 && !strncmp("GET", pay, 3)) ? 
+		valid_get(pay, paylen) : 0;
 
-	int get = 0;
-	if (1) {
-		if (dport == 80 && paylen > 3 && !strncmp("GET", pay, 3)) {
-			int i = paylen;
-			char *s = (char *)pay;
-			while (i--) {
-				if (*s == '\r')
-					break;
-				s++;
-			}
-			if (i >= 0) {
-				*s = 0;
-				char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
-				//char *exts[] = {"flv", "mp4"};
-				//if (strstr(pay, "youku")) {
-				for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) {
-					if (strstr(pay, exts[i])) {
-						get = 1;
-						break;
-					}
-				}
-				*s = '\r';
-			}
-		}
+	void *h1 = (dport == 80) ? 
+		hash(sip, dip, sport, dport) : hash(dip, sip, dport, sport);
+	conn_t *c = conn_lookup(h1);
+
+	s_totlen += plen;
+	if (c || get)
+		s_validlen += plen;
+
+	if (get) {
+		if (c) 
+			conn_finish(c);
+		c = conn_new();
+		if (!c)
+			return ;
+		c->_hash = h1;
+		c->ack = (int)ack;
+		c->stat = 'w';
+		c->id = rand();
 	}
-
-	do {
-		int i;
-		void *h1 = dport == 80 ? 
-			hash(sip, dip, sport, dport) : hash(dip, sip, dport, sport);
-		conn_t *c = (conn_t *)g_hash_table_lookup(ht, h1);
-		char *cache = "/var/lib/xcache";
-		char path[512];
-		ptotlen += plen;
-		if (c || get)
-			validlen += plen;
-		if (get) {
-			if (c) 
-				conn_finish(c, h1);
-			c = (conn_t *)malloc(sizeof(*c));
-			memset(c, 0, sizeof(*c));
-			c->ack = (int)ack;
-			c->stat = 'w';
-			c->id = rand();
-			//sprintf(path, "%s/%d.txt", cache, c->id);
-			//c->seq = fopen(path, "w+");
-			g_hash_table_insert(ht, h1, c);
-		}
-		if (c && paylen > 0 && sport == 80) {
-			int pos = (int)seq - c->ack;
-			uint8_t ch = pay[paylen-1];
-			iolen += paylen;
-			if (pos == 0) {
-				pay[paylen-1] = 0;
-				if (!strstr(pay, "200")) {
-					conn_del(c, h1);
-					break ;
-				}
-				char *s = strstr(pay, "Content-Length:");
-				if (!s) {
-					conn_del(c, h1);
-					break ;
-				}
-				s += strlen("Content-Length:");
-				while (*s == ' ')
-					s++;
-				int clen = atoi(s);
-				if (clen < 1000*1024) {
-					conn_del(c, h1);
-					break;
-				}
-				s = strstr(pay, "\r\n\r\n");
-				if (!s) {
-					conn_del(c, h1);
-					break;
-				}
+	
+	if (c && paylen > 0 && sport == 80) {
+		s_iolen += paylen;
+		int pos = (int)seq - c->ack;
+		if (pos == 0) {
+			if (valid_rsp(pay, paylen, c) ) {
 				if (c->stat == 'w') {
 					c->stat = 'c';
-					c->hdrlen = s + 4 - (char *)pay;
-					pay[paylen-1] = ch;
-					c->clen = clen;
+					c->hdrlen = c->_s + 4 - pay;
 					c->curpos = 0;
 					c->nextpos = paylen - c->hdrlen;
 					sec_add(c, 0, paylen - c->hdrlen);
-					//fprintf(c->seq, "%d\n", clen); 
-					//fprintf(c->seq, "%d %d\n", 0, paylen - c->hdrlen); 
-					//fflush(c->seq);
 				}
-			} else {
-				pos -= c->hdrlen;
-				if (c->stat == 'c') {
-					sec_add(c, pos, paylen);
-					if (pos != c->nextpos) {
-						c->hole++;
-					} else 
-						c->nextpos += paylen;
-					//c->curpos = pos;
-					//c->nextpos = pos + paylen;
-					//fprintf(c->seq, "%d %d\n", pos - c->hdrlen, paylen); 
-					//fflush(c->seq);
-				}
+			} else
+				conn_del(c);
+		} else {
+			pos -= c->hdrlen;
+			if (c->stat == 'c') {
+				sec_add(c, pos, paylen);
+				if (pos == c->nextpos) 
+					c->nextpos += paylen;
 			}
 		}
-		if (c && (tcpf & 5)) {
-			conn_finish(c, h1);
-		}
-	} while (0);
+	}
 
-	if (iolen > 1024*1024*20) {
+	if (c && (tcpf & 5)) {
+		conn_finish(c);
+	}
+
+	if (s_iolen > 1024*1024*1) {
+		printf("iostat %d %d %d\n", s_iolen, s_totlen, s_validlen);
+		s_iolen = 0; s_totlen = 0; s_validlen = 0;
 	}
 }
 
-void xcache_init()
+void xcache_init(void)
 {
-	ht = g_hash_table_new(g_direct_hash, g_direct_equal);
-
 	setbuf(stdout,NULL); 
-
-	struct ifreq ifr;
-	int fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-	ifr.ifr_addr.sa_family = AF_INET;
-	strncpy(ifr.ifr_name, "eth1", IFNAMSIZ-1);
-	ioctl(fd, SIOCGIFHWADDR, &ifr);
-	memcpy(mymac, ifr.ifr_hwaddr.sa_data, 6);
 }
 

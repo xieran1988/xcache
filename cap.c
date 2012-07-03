@@ -42,9 +42,17 @@ typedef struct {
 #define MAX_CONN 128
 conn_t conns[MAX_CONN];
 
-static int s_totlen, s_validlen, s_iolen;
+static int s_totlen, s_validlen, s_iolen, s_io0;
 
-static void *hash(uint32_t sip, uint32_t dip, uint32_t sport, uint32_t dport) 
+static double hires_time(void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, 0);
+	return tv.tv_sec + tv.tv_usec/1000000.;
+}
+
+static void *hash(
+		uint32_t sip, uint32_t dip, uint32_t sport, uint32_t dport) 
 {
 	return (void *)(sip*31+ dip*97+ sport*13+ dport*67);
 }
@@ -120,31 +128,30 @@ static int conn_count(void)
 
 static void conn_finish(conn_t *c)
 {
+	int done = 0;
 	if (c->stat == 'c') {
-		static int cached;
-		cached++;
 		sec_sumup(c);
-		printf("cached %d %d %d ", c->clen, c->io, conn_count());
-		if (c->clen - c->nextpos == 0)
+		printf("s_cached %d %d ", c->clen, c->io);
+		if (c->clen - c->nextpos == 0) {
 			printf("complete");
+			done = 1;
+		} 
 		else {
-			if (c->io < c->clen) 
-				printf("rst %d", c->io);
-			else {
-				if (c->cont) {
-					if (c->sec[c->nsec-1].end >= c->clen)
-						printf("complete ");
-					else {
-						printf("rst %d", c->sec[c->nsec-1].end);
-					}
-				} else
+			int end = c->sec[c->nsec-1].end;
+			if (end > c->clen) {
+				printf("err ");
+			} else if (end == c->clen) {
+				if (c->cont)
+					printf("complete ");
+				else
 					printf("hole ");
-				printf("%d %d %d", c->nsec, c->io-c->clen, c->sec[c->nsec-1].end);
-			}
+			} else
+				printf("rst ");
+			printf("%d %d %d", c->nsec, c->io-c->clen, end);
 		}
 		printf("\n");
-		conn_del(c);
 	}
+	conn_del(c);
 }
 
 static int valid_get(char *pay, int paylen)
@@ -198,7 +205,6 @@ fail:
 	return valid;
 }
 
-void xcache_process_packet(uint8_t *p, int plen);
 void xcache_process_packet(uint8_t *p, int plen)
 {
 	char *pay;
@@ -240,6 +246,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 		c = conn_new();
 		if (!c)
 			return ;
+		c->s_io = paylen;
 		c->_hash = h1;
 		c->ack = (int)ack;
 		c->stat = 'w';
@@ -250,7 +257,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 		s_iolen += paylen;
 		int pos = (int)seq - c->ack;
 		if (pos == 0) {
-			if (valid_rsp(pay, paylen, c) ) {
+			if (valid_rsp(pay, paylen, c)) {
 				if (c->stat == 'w') {
 					c->stat = 'c';
 					c->hdrlen = c->_s + 4 - pay;
@@ -275,8 +282,25 @@ void xcache_process_packet(uint8_t *p, int plen)
 	}
 
 	if (s_iolen > 1024*1024*1) {
-		printf("iostat %d %d %d\n", s_iolen, s_totlen, s_validlen);
-		s_iolen = 0; s_totlen = 0; s_validlen = 0;
+		static time_t tm;
+		if (time(0) - tm > 3) {
+			int i;
+			for (i = 0; i < MAX_CONN; i++) {
+				conn_t *c = &conns[i];
+				if (c->_used) {
+					if (c->s_io == 0) {
+						s_io0++;
+						conn_del(c);
+					}
+				}
+				c->s_io = 0;
+			}
+			tm = time(0);
+			printf("s_iostat %lf %d %d %d %d %d\n", 
+					hires_time(), s_totlen, s_validlen, s_iolen,
+					conn_count(), s_io0);
+			s_iolen = 0; s_totlen = 0; s_validlen = 0; s_io0 = 0;
+		}
 	}
 }
 

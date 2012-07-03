@@ -5,4 +5,5 @@ pcap
 mutex
 pipe
 seq
+log
 tests/

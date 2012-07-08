@@ -30,7 +30,7 @@ typedef struct {
 	int curpos, nextpos;
 	int clen;
 	sec_t sec[128];
-	int nsec, io, cont;
+	int nsec, io, cont, hs;
 	FILE *seq;
 	char stat;
 	char *_s;
@@ -39,10 +39,10 @@ typedef struct {
 	void *_hash;
 } conn_t ;
 
-#define MAX_CONN 128
+#define MAX_CONN 1400
 conn_t conns[MAX_CONN];
 
-static int s_totlen, s_validlen, s_iolen, s_io0;
+static int s_totlen, s_validlen, s_iolen, s_io0, s_e, s_totget, s_validget, s_connmiss;
 
 static double hires_time(void)
 {
@@ -59,9 +59,18 @@ static void *hash(
 
 static void sec_add(conn_t *c, int start, int len)
 {
-	int i, end = start + len;
+	int i, end = start + len, j = 0;
 	c->io += len;
 	c->s_io += len;
+	
+	for (i = 1; i < c->nsec; i++) {
+		if (c->sec[0].end == c->sec[i].start) {
+			c->sec[0].end = c->sec[i].end;
+			j++;
+		}
+	}
+	c->nsec ;
+
 	for (i = 0; i < c->nsec; i++) {
 		if (c->sec[i].start <= start && c->sec[i].end >= end)
 			return ;
@@ -86,11 +95,13 @@ static void sec_add(conn_t *c, int start, int len)
 static void sec_sumup(conn_t *c) 
 {
 	int i;
+	for (i = 0; i < c->nsec; i++)
+		c->hs += c->sec[i].end - c->sec[i].start;
 	for (i = 1; i < c->nsec; i++) {
-		if (c->sec[i].start != c->sec[i-1].end)
-			return ;
+		//if (c->sec[i].start != c->sec[i-1].end)
 	}
-	c->cont = 1;
+	if (c->hs == c->clen)
+		c->cont = 1;
 }
 
 static conn_t *conn_new(void)
@@ -98,6 +109,7 @@ static conn_t *conn_new(void)
 	int i;
 	for (i = 0; i < MAX_CONN; i++)
 		if (!conns[i]._used) {
+			memset(&conns[i], 0, sizeof(conns[i]));
 			conns[i]._used++;
 			return &conns[i];
 		}
@@ -144,7 +156,7 @@ static void conn_finish(conn_t *c)
 				if (c->cont)
 					printf("complete ");
 				else
-					printf("hole ");
+					printf("hole %d ", c->clen - c->hs);
 			} else
 				printf("rst ");
 			printf("%d %d %d", c->nsec, c->io-c->clen, end);
@@ -154,7 +166,7 @@ static void conn_finish(conn_t *c)
 	conn_del(c);
 }
 
-static int valid_get(char *pay, int paylen)
+static int valid_get(char *pay, int paylen, uint32_t dip)
 {
 	int i = paylen;
 	char *s = (char *)pay;
@@ -165,11 +177,16 @@ static int valid_get(char *pay, int paylen)
 	}
 	if (i >= 0) {
 		*s = 0;
-		char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip"};
+		char *exts[] = {"exe", "flv", "mp4", "mp3", "rar", "zip", "f4v"};
 		//char *exts[] = {"flv", "mp4"};
-		//if (strstr(pay, "youku")) {
 		for (i = 0; i < sizeof(exts)/sizeof(exts[0]); i++) {
 			if (strstr(pay, exts[i])) {
+				/*
+				unsigned char *s = (typeof(s))&dip;
+				printf("dip=%d.%d.%d.%d GET %s\n", 
+						s[0], s[1], s[2], s[3],
+						pay);
+						*/
 				return 1;
 			}
 		}
@@ -183,14 +200,12 @@ static int valid_rsp(char *pay, int paylen, conn_t *c)
 	int valid = 0;
 	char ch = pay[paylen-1];
 	pay[paylen-1] = 0;
-	if (!strstr(pay, "200")) 
-		goto fail;
+//	if (!strstr(pay, "200")) 
+//		goto fail;
 	char *s = strstr(pay, "Content-Length:");
 	if (!s) 
 		goto fail;
 	s += strlen("Content-Length:");
-	while (*s == ' ')
-		s++;
 	int clen = atoi(s);
 	if (clen < 1000*1024) 
 		goto fail;
@@ -213,6 +228,17 @@ void xcache_process_packet(uint8_t *p, int plen)
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
 
+	static int fn;
+	fn++;
+	if (
+			*(uint16_t*)(p+4) == *(uint16_t*)"ck" &&
+			*(uint16_t*)(p+10) == *(uint16_t*)"fu"
+			)
+	{
+		printf("fuck=%d\n", fn);
+		fn = 0;
+	}
+
 	ip = (uint8_t *)p + 14;
 	iplen = (*ip&0x0f)*4;
 	tcp = (uint8_t *)p + 14 + iplen;
@@ -228,9 +254,16 @@ void xcache_process_packet(uint8_t *p, int plen)
 	tcpf = *(tcp+13);
 	paylen = totlen - iplen - tcplen;
 
-	int get = 
-		(dport == 80 && paylen > 3 && !strncmp("GET", pay, 3)) ? 
-		valid_get(pay, paylen) : 0;
+	int get = 0;
+	if (dport == 80 && paylen > 3) {
+	 	if (!strncmp("GET", pay, 3)) {
+			s_totget++;
+			if (valid_get(pay, paylen, dip)) {
+				s_validget++;
+				get = 1;
+			}
+		}
+	}
 
 	void *h1 = (dport == 80) ? 
 		hash(sip, dip, sport, dport) : hash(dip, sip, dport, sport);
@@ -244,8 +277,11 @@ void xcache_process_packet(uint8_t *p, int plen)
 		if (c) 
 			conn_finish(c);
 		c = conn_new();
-		if (!c)
+		if (!c) {
+			s_connmiss++;
+			exit(2);
 			return ;
+		}
 		c->s_io = paylen;
 		c->_hash = h1;
 		c->ack = (int)ack;
@@ -256,6 +292,9 @@ void xcache_process_packet(uint8_t *p, int plen)
 	if (c && paylen > 0 && sport == 80) {
 		s_iolen += paylen;
 		int pos = (int)seq - c->ack;
+		if (c->stat == 'e') {
+			s_e += paylen;
+		}
 		if (pos == 0) {
 			if (valid_rsp(pay, paylen, c)) {
 				if (c->stat == 'w') {
@@ -265,8 +304,10 @@ void xcache_process_packet(uint8_t *p, int plen)
 					c->nextpos = paylen - c->hdrlen;
 					sec_add(c, 0, paylen - c->hdrlen);
 				}
-			} else
-				conn_del(c);
+			} else {
+				c->stat = 'e';
+				//conn_del(c);
+			}
 		} else {
 			pos -= c->hdrlen;
 			if (c->stat == 'c') {
@@ -283,7 +324,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 	if (s_iolen > 1024*1024*1) {
 		static time_t tm;
-		if (time(0) - tm > 3) {
+		if (time(0) - tm > 5) {
 			int i;
 			for (i = 0; i < MAX_CONN; i++) {
 				conn_t *c = &conns[i];
@@ -297,9 +338,11 @@ void xcache_process_packet(uint8_t *p, int plen)
 			}
 			tm = time(0);
 			printf("s_iostat %lf %d %d %d %d %d\n", 
-					hires_time(), s_totlen, s_validlen, s_iolen,
-					conn_count(), s_io0);
-			s_iolen = 0; s_totlen = 0; s_validlen = 0; s_io0 = 0;
+					hires_time(), conn_count(), 
+					s_totlen, s_validlen, s_iolen, s_io0
+					);
+			s_iolen = 0; s_totlen = 0; s_validlen = 0; s_io0 = 0; 
+			s_connmiss = 0;
 		}
 	}
 }

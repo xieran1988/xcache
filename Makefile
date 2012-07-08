@@ -25,6 +25,9 @@ queue-netsniff:
 direct-netsniff:
 	make run-netsniff
 
+weblog:
+	make direct-netsniff | ./parse.pl | node data.js
+
 save-netsniff:
 	mode=1 make run-netsniff
 

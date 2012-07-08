@@ -1,0 +1,48 @@
+<html>
+<head>
+	<script language="javascript" type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>  
+	<script language="javascript" type="text/javascript" src="http://code.highcharts.com/highcharts.js"></script>  
+	<script language="javascript" type="text/javascript" src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>  
+	<script type="text/javascript">  
+		function table(title, ytitle, min, max, series) {
+			$('body').append($('div').attr('id', title)
+					.css('width', '500px').css('height', '200px'));
+			return new Highcharts.Chart({
+				chart: { renderTo:title, type:'spline', animation:false },
+				title: { text:title },
+				xAxis: { type:'datetime', tickPixelInterval:200 },
+				yAxis: { title: { text:ytitle }, max:max, min:min},
+				series: series
+			});
+		}
+		var t = (new Date()).getTime(), i, _d = [];
+		for (i = 0; i < 30; i++) _d.push([t,0]);
+		function D(s) { return {name:s, data:_d}; }
+		$(document).ready(function() { 
+			var ta = [
+				table('network', 'Mb/s', 0, 800, [D('tot'), D('io')]),
+				table('entries', 'count', 0, 30, [D('complete'), D('hole')]),
+				table('hash', 'count', 0, 800, [D('ht')]),
+			];
+			io.connect('http://'+window.location.hostname+':8889')
+				.on('news', function (data) {
+					console.log(data);
+					var j = jQuery.parseJSON(data);
+					for (t in ta) {
+						var x = (new Date()).getTime();
+						console.log(ta[t].series);
+						for (s in ta[t].series) {
+							a = ta[t].series[s];
+							for (i in j) {
+								if (i == a.name) 
+									a.addPoint([x, j[i]], true, true);
+							}
+						}}
+				});
+		});
+	</script>  
+</head>
+<body>  
+	<div id="main"></div>
+</body>  
+</html>

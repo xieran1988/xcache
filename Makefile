@@ -17,7 +17,7 @@ sum-seq:
 
 run-netsniff: install 
 	@cd /root/netsniff-ng/src && make && \
-		netsniff-ng/netsniff-ng --in eth1 -s -f /root/port80-2.bpf 
+		netsniff-ng/netsniff-ng --in eth1 -s #-f /root/port80-2.bpf 
 
 queue-netsniff:
 	mode=2 make run-netsniff
@@ -79,7 +79,8 @@ cp: xcache-cap seq
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
 	@cp jmp.py cap.py web.sh /usr/lib/xcache
-	@cp xcache-* /usr/bin/
+	-@cp xcache-* /usr/bin/
+	@cp -R xcache-web /var/www
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
 
 install: init cp

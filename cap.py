@@ -1,157 +1,121 @@
 #!/usr/bin/python
 
-import re, os, sys 
-import shutil, hashlib, marshal, logging, traceback, copy
-import datetime, random
+import re, os, sys, datetime, mimetools, threading, json, traceback
 from urlparse import *
 from xcache import *
-from socket import *
 from cStringIO import *
 
-exts = ['.flv', '.mp4', '.mp3', '.exe', '.rar', '.zip']
-stat = XCacheStat()
-sock = socket(AF_INET, SOCK_DGRAM)
+MAXCONN = 1000
 conn = {}
+stat = {'io':0, 'tot':0, 'fin':0, 'reget':0, 'timeout':0, 'inv':0}
+hosts = {}
+conn_lock = threading.RLock()
 
-def new_conn(u, payload, ack):
-	m = XCacheInfo(u.p2)
-	m.url = u.url
-	m.start = u.start
-	m.ext = u.ext
-	m.sha = u.sha
-	m.p2 = u.p2
-	m.stat = 'waiting'
-	m.fp = open(m.p2+'file', 'wb+')
-	m.fph = open(m.p2+'rsp.txt', 'wb+')
-	m.ack = ack
-	m.clen = 0
-	m.seq = []
-	m.iolen = 0
-	open(m.p2+'req.txt', 'wb+').write(payload)
-	stat.inc('new', 1)
-	m.dump()
-	conn[m.p2] = m
-	return m
+class XCacheConn:
+	pass
 
-def del_conn(m, f=None):
-	m.fp.close()
-	m.fph.close()
-	m.dump()
-	if m.stat == 'error':
-		os.system('rm -rf '+m.p2)
-	del conn[m.p2]
-
-def stat_conn():
-	s = XCacheStat()
-	for k in conn:
-		m = conn[k]
-		s.inc(m.stat, 1)
-	print s
-
-rcomp = re.compile(r'^GET (\S+) \S+\r\n')
-
-def check_request(m, payload, ack):
-	if m is not None:
-		check_finish(m)
-		del_conn(m)
-	r = rcomp.match(payload)
-	if r is None:
+def mime(pay):
+	try:
+		r, h = pay.split('\r\n', 1)
+		m = mimetools.Message(StringIO(h))
+	except:
 		return 
-	url = r.groups()[0]
-	u = XCacheURL(url)
-	if u.ext not in exts:
+	return (m, pay)
+
+def check_request(t, pay, ack):
+	if t in conn:
+		check_finish(conn[t], 'reget')
 		return 
-	stat.inc('get.start0' if u.start == 0.0 else 'get.start1', 1)
-	if not os.path.exists(u.p1):
-		os.mkdir(u.p1)
-	if not os.path.exists(u.p2):
-		os.mkdir(u.p2)
-		os.symlink(u.p2+'/file', u.p2+'/file'+u.ext)
-	return new_conn(u, payload, ack)
+	c = XCacheConn()
+	c.req = mime(pay)
+	c.fp = open('/tmp/%d'%ack, 'wb+')
+	c.stat = 'active'
+	c.ack = ack 
+	c.t_io0 = 0
+	c.io = 0
+	c.s_io = 0
+	conn[t] = c
 
-def seq_append(m, s):
-#	if 'seq' in os.environ and os.environ['seq'] == 'all':
-		m.seq.append(s)
+def check_response(c, pay):
+	c.rsp = mime(pay)
 
-def seq_analyze(m, s):
-	f = open(m.short+'/seq.txt', 'w+')
-	f.write('%d\n'%m.clen)
-	for a,b in s:
-		f.write('%d %d\n' % (a,b))
-	f.close()
-	os.system( \
-			'/root/xcache/seq \
-			%s/seq.txt %s/seq-stat.txt %s/seq-holes.txt \
-			> /dev/null & ' % (m.short, m.short, m.short) \
-			)
+def check_finish(c, s):
+	if c.stat == 'active':
+		stat[s] += 1
+		c.stat = s
+		try:
+			m, pay = c.rsp
+			#print 'pay', len(pay)
+			clen = int(m['Content-Length'])
+			if c.pos > clen:
+				print 's', s, 'clen', '%.2f'%(clen/1024./1024)
+				h = c.req[0]['Host']
+				c.stat = 'cached'
+				if h not in hosts:
+					hosts[h] = 0
+				hosts[h] += 1
+		except:
+			pass
 
-def check_finish(m):
-	if m.fp.tell() >= m.clen and m.stat == 'caching':
-		m.fp.truncate(m.clen)
-		m.stat = 'cached'
-		print 'CACHED', m, 'clen', m.clen, 'left', m.clen - m.iolen, m.url
-		if len(m.seq) > 0:
-			seq_analyze(m, m.seq)
-		stat.inc('cached', 1, care=1)
-		stat.inc('tot_clen', m.clen)
-	else:
-		m.stat = 'error'
-		m.reason = 'got rst %d/%d' % (m.fp.tell(), m.clen)
-		stat.inc('error.rst', 1)
+def process_packet(sip, dip, sport, dport, ack, seq, tcpf, pay):
+	with conn_lock:
+		stat['tot'] += len(pay)
+		t = (sip,dip,sport,dport) if sport == 80 else (dip,sip,dport,sport)
+		c = conn[t] if t in conn else None
+		if dport == 80:
+			if pay.startswith('GET'):
+				if len(conn) < MAXCONN:
+					check_request(t, pay, ack)
+		else:
+			if c:
+				c.pos = seq - c.ack + len(pay)
+				if pay.startswith('HTTP'):
+					check_response(c, pay)
+				stat['io'] += len(pay)
+				c.fp.write(pay)
+				c.io += len(pay)
+				c.s_io += len(pay)
+		if c and tcpf & 5:
+			check_finish(c, 'fin')
 
-def check_response(m, pos, payload):
-	m.fph.write(payload)
-	if pos > 8192:
-		m.stat = 'error'
-		m.reason = 'invalid header'
-		stat.inc('error.hdr', 1)
-		return 
-	f = StringIO(payload)
-	if pos == 0:
-		r = f.readline()
-		m.rsp = r.strip()
-		if '200' not in r:
-			m.stat = 'error'
-			m.reason = r
-			stat.inc('error.rsp', 1)
-			return 
-	while True:
-		l = f.readline()
-		if l == '\r\n' or l == '':
-			break
-		g = re.match(r"^Content-Length:\s*(\d+)", l)
-		if g is not None:
-			m.clen = int(g.groups()[0])
-	if l == '\r\n' and m.clen > 1000*1024:
-		m.stat = 'caching'
-		#m.fp.truncate(m.clen)
-		m.hdrlen = pos + f.tell()
-		m.rsplen = len(payload)
-		seq_append(m, (0, len(payload[f.tell():])))
-		m.fp.write(payload[f.tell():])
-		m.dump()
-		stat.inc('caching', 1)
-		print 'CACHING', m
+invfuck = []
 
-def process_packet(m, payload, seq, fin):
-	stat.inc('packet_bytes', len(payload))
-	stat.inc('packet_nr', 1)
-	pos = seq - m.ack
-	if m.stat == 'waiting':
-		check_response(m, pos, payload)
-	if m.stat == 'caching' and pos >= m.hdrlen:
-		stat.inc('io_bytes', len(payload))
-		stat.inc('io_packets', 1)
-		seq_append(m, (pos - m.hdrlen, len(payload)))
-		m.iolen += len(payload)
-		m.fp.seek(pos - m.hdrlen)
-		m.fp.write(payload)
-	if fin:
-		check_finish(m)
-	if m.stat == 'cached' or m.stat == 'error':
-		del_conn(m)
-		return True
-	return False
-	#	sock.sendto(stat.dumps(), ('localhost', 1653))
-	#	stat.clear()
+def invalid_fuck(inv):
+	with conn_lock:
+		print 'INVAID FUCK:', inv
+		invfuck.append([inv, datetime.datetime.now()])
+		for k in conn:
+			check_finish(conn[k], 'inv')
+	
+def timer():
+	with conn_lock:
+		active = 0
+		max_timeout = 0
+		to_del = []
+		for k in conn:
+			c = conn[k]
+			if c.s_io == 0:
+				c.t_io0 += 1
+			else:
+				c.t_io0 = 0
+			c.s_io = 0
+			if c.t_io0 > 3:
+				if c.stat == 'active':
+					c.stat = 'timeout'
+					stat['timeout'] += 1
+			if c.stat != 'active':
+				to_del.append(k)
+		for k in to_del:
+			del conn[k]
+	stat['active'] = len(conn)
+	stat['io'] /= 1024*1024.
+	#print json.dumps(stat)
+	#print json.dumps(hosts)
+	print stat['io'], len(conn), invfuck
+#	for k in ['io', 'tot', 'clen']:
+	for k in stat:
+		stat[k] = 0
+	threading.Timer(1, timer).start()
+
+threading.Timer(1, timer).start()
 

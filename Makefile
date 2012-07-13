@@ -71,16 +71,14 @@ init:
 	@cp xcache /etc/init.d
 	@update-rc.d xcache defaults
 
-cp: xcache-cap seq 
-	@rm -rf /usr/lib/python2.7/xcache.py
-	@cp util.py /usr/lib/python2.7/xcache.py
-	@ln -sf /var/lib/xcache /var/www/
+cp: 
+	@ln -sf /tmp /var/www/xcache
 	@ln -sf /usr/lib/xcache /var/www/xcache-lib
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
-	@cp jmp.py cap.py web.sh /usr/lib/xcache
+	@cp urlsha.py /usr/lib/xcache/
 	-@cp xcache-* /usr/bin/
-	@cp -R xcache-web /var/www
+	@cp -R xcache-web xcache-jmp.pl /var/www
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
 
 install: init cp
@@ -97,3 +95,6 @@ dep:
 clean:
 	rm -rf *.o xcache-cap
 
+ctest:
+	gcc /root/t.c -o /tmp/c
+	/tmp/c

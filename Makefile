@@ -15,9 +15,9 @@ seq: seq.c
 sum-seq:
 	./sumseq | grep tot
 
-run-netsniff: install 
-	@cd /root/netsniff-ng/src && make && \
-		netsniff-ng/netsniff-ng --in eth1 -s #-f /root/port80-2.bpf 
+run-netsniff: install
+	@cd netsniff-ng/src/build && make && \
+		./netsniff-ng/netsniff-ng --in eth1 -s #-f /root/port80-2.bpf 
 
 queue-netsniff:
 	mode=2 make run-netsniff
@@ -72,16 +72,19 @@ init:
 	@update-rc.d xcache defaults
 
 cp: 
-	@ln -sf /tmp /var/www/xcache
-	@ln -sf /usr/lib/xcache /var/www/xcache-lib
+	@rm -rf /var/www/xcache*
+	@cp xcache-jmp.pl xcache-charts.html /var/www
+	@ln -sf /c /var/www/xcache
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
 	@cp urlsha.py /usr/lib/xcache/
-	-@cp xcache-* /usr/bin/
-	@cp -R xcache-web xcache-jmp.pl /var/www
+	@cp xcache-* /usr/bin/
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
 
-install: init cp
+clear:
+	@rm -rf /c/* /d/* /l/*
+
+install: init cp clear
 	@/etc/init.d/lighttpd restart
 
 dep:
@@ -91,6 +94,21 @@ dep:
 	cd flv* && \
 	python setup.py install
 	apt-get install python-flup libpcap-dev lighttpd python-dev
+
+dep2:
+	apt-get build-dep netsniff-ng
+	apt-get install -y --force-yes cmake libnl-dev flex bison \
+		libgeoip-dev ethtool
+	git clone git://github.com/gnumaniacs/netsniff-ng.git
+	cd netsniff-ng/src && \
+		ln -sv ../../cap.c xcache_cap.c && \
+		ln -sv ../../queue.c xcache_queue.c && \
+		ln -svf ../../netsniff-ng-patch/CMakeLists.txt \
+			netsniff-ng/CMakeLists.txt && \
+		ln -svf ../../netsniff-ng-patch/netsniff-ng.c netsniff-ng.c && \
+		mkdir build && cd build && \
+		make
+	mkdir /c /d /l
 
 clean:
 	rm -rf *.o xcache-cap

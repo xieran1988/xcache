@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdint.h>
@@ -35,7 +36,7 @@ static void fin_conn(conn_t *c, char s)
 	//printf("fin %p f=%p\n", c, c->f);
 	fclose(c->f);
 	if (s == 'r') {
-		char tmp[128] = "/tmp/C.XXXXXX";
+		char tmp[128] = "/c/C.XXXXXX";
 		rename(c->p, mktemp(tmp));
 	}
 	if (s == 'd') {
@@ -45,8 +46,9 @@ static void fin_conn(conn_t *c, char s)
 	memset(c, 0, sizeof(*c));
 }
 
-static void timer(void)
+static void timer(int _d)
 {
+	alarm(1);
 	int i, active=0, io=0;
 	for (i = 0; i < NR; i++) {
 		if (!conn[i].io && conn[i].f) 
@@ -66,14 +68,6 @@ void xcache_process_packet(uint8_t *p, int plen)
 	uint32_t iplen, tcplen, totlen, paylen;
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
-
-	static int tn;
-	static double last;
-	tn++;
-	if (!(tn%1000) && now() - last > 1.0) {
-		timer();
-		last = now();
-	}
 
 	/*
 	static int fn, fnn, finv, ninv;
@@ -141,7 +135,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 					c = &conn[i];
 					c->h = h;
 					c->ack = (int)ack;
-					strcpy(c->p, "/tmp/A.XXXXXX");
+					strcpy(c->p, "/c/A.XXXXXX");
 					mktemp(c->p);
 					c->f = fopen(c->p, "wb+");
 					fwrite(pay, paylen, 1, c->f);
@@ -166,6 +160,8 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 void xcache_init(void)
 {
+	signal(SIGALRM, timer);
+	alarm(1);
 	setbuf(stdout, NULL); 
 }
 

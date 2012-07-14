@@ -47,6 +47,8 @@ void xinit()
 {
 	if (getenv("mode")) 
 		mode = atoi(getenv("mode"));
+
+	printf("capture starts\n");
 	
 	switch (mode) {
 	case 0: printf("mode=live\n"); break;

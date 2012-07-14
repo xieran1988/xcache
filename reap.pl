@@ -3,24 +3,22 @@
 use File::Temp qw/ :mktemp  /;
 
 sub reap {
-	open F, "find /tmp/ -name 'C.*'|";
-	$tot = 0;
-	$cached = 0;
+	open F, "find /c -name 'C.*'|";
+	$tot = 0; $cached = 0;
 	while (<F>) {
 		chomp;
 		$tot++;
 		$f = $_;
 		($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
-			$atime,$mtime,$ctime,$blksize,$blocks)
-		= stat($f);
+			$atime,$mtime,$ctime,$blksize,$blocks) = stat($f);
+		$ptn = $1 if $f =~ /\w\.(.*)/;
 		$du = $blocks*$blksize;
+		`echo "Size: $size" > /l/LH.$ptn`;
+		`echo "Du: $du" >> /l/LH.$ptn`;
+		`head -c 8192 $f >> /l/LH.$ptn`;
 		if ($du > $size) {
 			open H, "head -c 8192 $f|";
-			$rn = 0;
-			$start = 0;
-			$clen = 0;
-			$inv = 0;
-			$sohu = 0;
+			$rn = 0; $start = 0; $clen = 0; $inv = 0;
 			while (<H>) {
 				if ($_ eq "\r\n") {
 					$rn++;
@@ -30,21 +28,21 @@ sub reap {
 				$clen = int($1) if /Content-Length:(.*)/;
 				$host = $1 if /Host: *(\S+)/;
 				$url = $1 if /GET (\S+)/;
-				$inv++ if /^Range/;
-				$sohu++ if /sohu/;
+				#$inv++ if /^Range/;
 			}
-			if (!$inv && $sohu && $clen && $start && $size > $clen) {
+			if (!$inv && $clen && $start && $size > $clen) {
 				$cached++;
 				$ss = $size - $start;
-				$ptn = $1 if $f =~ /\w\.(.*)/;
 				$sha = `/root/xcache/urlsha.py $url`;
 				chomp $sha;
-				`tail -c $ss $f > /tmp/F.$ptn`;
-				`head -c $start $f > /tmp/H.$ptn`;
+				`tail -c $ss $f > /c/F.$ptn`;
+				`head -c $start $f > /c/H.$ptn`;
 				print "$f $clen http://$host$url $sha\n";
-				if (! -f "/tmp/CH.$sha") {
-					`mv /tmp/F.$ptn /tmp/CF.$sha`;
-					`mv /tmp/H.$ptn /tmp/CH.$sha`;
+				if (! -f "/d/CH.$sha") {
+					`mv /c/F.$ptn /d/CF.$sha`;
+					`mv /c/H.$ptn /d/CH.$sha`;
+				} else {
+					`rm -rf /c/F.$ptn /c/H.$ptn`;
 				}
 			}
 		}
@@ -54,6 +52,6 @@ sub reap {
 }
 
 while (1) {
-	sleep 1;
 	reap;
+	sleep 1;
 }

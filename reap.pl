@@ -3,7 +3,7 @@
 use File::Temp qw/ :mktemp  /;
 
 sub reap {
-	open F, "find /c -name 'C.*'|";
+	open F, "find -L /c -name 'C.*'|";
 	$tot = 0; $cached = 0;
 	while (<F>) {
 		chomp;
@@ -13,11 +13,13 @@ sub reap {
 			$atime,$mtime,$ctime,$blksize,$blocks) = stat($f);
 		$ptn = $1 if $f =~ /\w\.(.*)/;
 		$du = $blocks*$blksize;
-		`echo "Size: $size" > /l/LH.$ptn`;
-		`echo "Du: $du" >> /l/LH.$ptn`;
-		`head -c 8192 $f >> /l/LH.$ptn`;
-		if ($du > $size) {
-			open H, "head -c 8192 $f|";
+		$t = time;
+		`echo "Time: $t" >> /l/L`;
+		`echo "Sha: $t" >> /l/L`;
+		`head -c 4096 $f >> /l/L`;
+		if (0) {
+		#if ($du > $size) {
+			open H, "head -c 4096 $f|";
 			$rn = 0; $start = 0; $clen = 0; $inv = 0;
 			while (<H>) {
 				if ($_ eq "\r\n") {
@@ -33,16 +35,17 @@ sub reap {
 			if (!$inv && $clen && $start && $size > $clen) {
 				$cached++;
 				$ss = $size - $start;
-				$sha = `/root/xcache/urlsha.py $url`;
+				$sha = `/usr/lib/xcache/urlsha.py $url`;
 				chomp $sha;
-				`tail -c $ss $f > /c/F.$ptn`;
-				`head -c $start $f > /c/H.$ptn`;
+				#`tail -c $ss $f > /c/F.$ptn`;
+				#`head -c $start $f > /c/H.$ptn`;
 				print "$f $clen http://$host$url $sha\n";
 				if (! -f "/d/CH.$sha") {
-					`mv /c/F.$ptn /d/CF.$sha`;
-					`mv /c/H.$ptn /d/CH.$sha`;
+					`mv $f /d/CH.$sha`;
+					#`mv /c/F.$ptn /d/CF.$sha`;
+					#`mv /c/H.$ptn /d/CH.$sha`;
 				} else {
-					`rm -rf /c/F.$ptn /c/H.$ptn`;
+					#`rm -rf /c/F.$ptn /c/H.$ptn`;
 				}
 			}
 		}

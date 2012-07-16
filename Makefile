@@ -9,15 +9,12 @@ xcache-cap: cap.o queue.o main.o raw.o
 		$(shell pcap-config --libs) \
 		$(shell pkg-config python glib-2.0 --libs)
 
-seq: seq.c
-	@gcc seq.c -o seq
-
-sum-seq:
-	./sumseq | grep tot
+screen: install
+	screen -dms cap xcache-cap --in eth1 -s
+	screen -dms reap xcache-proc
 
 run-netsniff: install
-	@cd netsniff-ng/src/build && make && \
-		./netsniff-ng/netsniff-ng --in eth1 -s #-f /root/port80-2.bpf 
+	xcache-cap --in eth1 -s #-f /root/port80-2.bpf 
 
 queue-netsniff:
 	mode=2 make run-netsniff
@@ -71,7 +68,10 @@ init:
 	@cp xcache /etc/init.d
 	@update-rc.d xcache defaults
 
-cp: 
+build-netsniff:
+	cd netsniff-ng/src/build && make
+
+cp: build-netsniff
 	@rm -rf /var/www/xcache*
 	@cp xcache-jmp.pl xcache-charts.html /var/www
 	@ln -sf /c /var/www/xcache
@@ -80,6 +80,8 @@ cp:
 	@cp urlsha.py /usr/lib/xcache/
 	@cp xcache-* /usr/bin/
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
+	@cp reap.pl /usr/bin/xcache-proc
+	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
 
 clear:
 	@rm -rf /c/* /d/* /l/*

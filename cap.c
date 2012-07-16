@@ -27,6 +27,8 @@ typedef struct {
 #define NR 2048
 conn_t conn[NR];
 
+static int alrm;
+
 static int hash(int a, int b, int c, int d) {
 	return a*33+b*37+c*23+d*3;
 }
@@ -46,9 +48,8 @@ static void fin_conn(conn_t *c, char s)
 	memset(c, 0, sizeof(*c));
 }
 
-static void timer(int _d)
+static void timer()
 {
-	alarm(1);
 	int i, active=0, io=0;
 	for (i = 0; i < NR; i++) {
 		if (!conn[i].io && conn[i].f) 
@@ -58,7 +59,36 @@ static void timer(int _d)
 		if (conn[i].f)
 			active++;
 	}
-	printf("active %d io %.2fM\n", active, io/1024./1024);
+	printf("%.2lf active %d io %.2fM\n", now(), active, io/1024./1024);
+}
+
+static int fuck_detect(uint8_t *p)
+{
+	static int fn, fnn, finv, ninv;
+	if (*(uint16_t*)(p+4) == *(uint16_t*)"it" &&
+			*(uint16_t*)(p+10) == *(uint16_t*)"sh")
+	{
+		fn++;
+		printf("shit\n");
+	} else if (
+			*(uint16_t*)(p+4) == *(uint16_t*)"ck" &&
+			*(uint16_t*)(p+10) == *(uint16_t*)"fu")
+	{
+		if (fnn && fn != 50000-1) {
+			finv = fn;
+		} else {
+			fn = 0;
+			fnn++;
+		}
+	}
+	if (!fnn) 
+		return 0;
+	if (finv) {
+		printf("inv fuck\n");
+		fnn = 0; finv = 0;
+		return 0;
+	}
+	return 1;
 }
 
 void xcache_process_packet(uint8_t *p, int plen)
@@ -69,32 +99,12 @@ void xcache_process_packet(uint8_t *p, int plen)
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
 
-	/*
-	static int fn, fnn, finv, ninv;
-	if (*(uint16_t*)(p+4) == *(uint16_t*)"it" &&
-			*(uint16_t*)(p+10) == *(uint16_t*)"sh")
-	{
-		fn++;
-	} else if (
-			*(uint16_t*)(p+4) == *(uint16_t*)"ck" &&
-			*(uint16_t*)(p+10) == *(uint16_t*)"fu")
-	{
-		if (fnn && fn != 50000-1) {
-			finv = fn;
-		} else {
-			printf("fuck\n");
-			fn = 0;
-			fnn++;
-		}
+	if (alrm) {
+		timer();
+		alrm = 0;
 	}
-	if (!fnn) 
-		return ;
-	if (finv) {
-		py_assert(PyObject_CallFunction(py_invalid_fuck, "i", finv));
-		fnn = 0; finv = 0;
-		return ;
-	}
-	*/
+
+	//fuck_detect(p);
 
 	ip = (uint8_t *)p + 14;
 	iplen = (*ip&0x0f)*4;
@@ -123,10 +133,8 @@ void xcache_process_packet(uint8_t *p, int plen)
 			c = &conn[i];
 			break;
 		}
-	//printf("c=%p\n", c);
 
-	if (!strncmp(pay, "GET", 3)) {
-		//printf("GET c=%p\n", c);
+	if (paylen > 3 && !strncmp(pay, "GET", 3)) {
 		if (c)
 			fin_conn(c, 'r');
 		else {
@@ -148,8 +156,12 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 	if (c) {
 		c->io += paylen;
-		fseek(c->f, (int)seq - c->ack + c->reqlen, 0);
-		fwrite(pay, paylen, 1, c->f);
+		int pos = (int)seq - c->ack;
+		//if (1) {
+		if (pos == 0) {
+			fseek(c->f, pos + c->reqlen, 0);
+			fwrite(pay, paylen, 1, c->f);
+		}
 	}
 
 	if (tcpf & 5) {
@@ -158,9 +170,15 @@ void xcache_process_packet(uint8_t *p, int plen)
 	}
 }
 
+static void sigalarm(int _D)
+{
+	alarm(1);
+	alrm++;
+}
+
 void xcache_init(void)
 {
-	signal(SIGALRM, timer);
+	signal(SIGALRM, sigalarm);
 	alarm(1);
 	setbuf(stdout, NULL); 
 }

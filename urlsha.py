@@ -88,5 +88,5 @@ class XCacheURL():
 
 if __name__ == '__main__':
 	u = XCacheURL(sys.argv[1])
-	print u.sha
+	print u.sha, u.ext
 

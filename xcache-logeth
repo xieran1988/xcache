@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+
+open F, ">/l/E";
+while (1) {
+	$a = int(`cat /proc/net/dev | grep eth1 | awk '{print \$2}'`);
+	$t = time;
+	print F "$a $t\n";
+	sleep 1;
+}
+
+

@@ -14,39 +14,28 @@ sub reap {
 		$ptn = $1 if $f =~ /\w\.(.*)/;
 		$du = $blocks*$blksize;
 		$t = time;
-		`echo "Time: $t" >> /l/L`;
-		`echo "Sha: $t" >> /l/L`;
-		`head -c 4096 $f >> /l/L`;
-		if (0) {
-		#if ($du > $size) {
-			open H, "head -c 4096 $f|";
-			$rn = 0; $start = 0; $clen = 0; $inv = 0;
-			while (<H>) {
-				if ($_ eq "\r\n") {
-					$rn++;
-					$start = tell H if $rn == 2;
-				}
-				chomp;
-				$clen = int($1) if /Content-Length:(.*)/;
-				$host = $1 if /Host: *(\S+)/;
-				$url = $1 if /GET (\S+)/;
-				#$inv++ if /^Range/;
-			}
-			if (!$inv && $clen && $start && $size > $clen) {
+		if ($du > $size) {
+			$s = `head -c 4096 $f`;
+			$start = index($s, "\r\n\r\n");
+			($url) = $s =~ /GET (\S+)/;
+			($clen) = $s =~ /Content-Length: (\d+)/;
+			($host) = $s =~ /Host: (\S+)/;
+			($range) = $s =~ /Range: bytes=(.*)/;
+			if ($clen > 1.5*1000000 && $start > 0 && $size > $clen) {
 				$cached++;
-				$ss = $size - $start;
-				$sha = `/usr/lib/xcache/urlsha.py $url`;
-				chomp $sha;
-				#`tail -c $ss $f > /c/F.$ptn`;
-				#`head -c $start $f > /c/H.$ptn`;
-				print "$f $clen http://$host$url $sha\n";
-				if (! -f "/d/CH.$sha") {
-					`mv $f /d/CH.$sha`;
-					#`mv /c/F.$ptn /d/CF.$sha`;
-					#`mv /c/H.$ptn /d/CH.$sha`;
-				} else {
-					#`rm -rf /c/F.$ptn /c/H.$ptn`;
+				$filesize = $size - $start;
+				($sha, $ext) = split /\s+/, `/usr/lib/xcache/urlsha.py $url`;
+				$mb = 1024.*1024;
+				printf "%.2lf $ext http://$host%s\n", $filesize/$mb, $url;
+				if (!`xcache-inrange /d/R.$sha $range`) {
+					`tail -c $filesize $f > /d/CF.$sha.$ptn`;
+					`mv /d/CF.$sha.$ptn /d/CF.$sha`;
+					`head -c $start $f > /d/CH.$sha`;
+					`echo $clen $range > /d/R.$sha`;
+					`echo "Overwrite: $range" >> /l/L`;
 				}
+				`head -c $start $f >> /l/L`;
+				`echo "Done: $sha $ext $t" >> /l/L`;
 			}
 		}
 		`rm -rf $f`;

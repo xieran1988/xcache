@@ -54,6 +54,9 @@ do_stop()
 	fi
 }
 
+#TODO
+return ;
+
 case "$1" in
     start)
 				do_start

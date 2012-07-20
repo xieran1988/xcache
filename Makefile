@@ -10,8 +10,15 @@ xcache-cap: cap.o queue.o main.o raw.o
 		$(shell pkg-config python glib-2.0 --libs)
 
 screen: install
-	screen -dms cap xcache-cap --in eth1 -s
-	screen -dms reap xcache-proc
+	screen -dmS cap xcache-cap --in eth1 -s
+	screen -dmS reap xcache-proc
+	screen -dmS logeth xcache-logeth
+
+screen-kill:
+	-pkill xcache-cap
+	screen -S cap -X quit
+	screen -S reap -X quit
+	screen -S logeth -X quit
 
 run-netsniff: install
 	xcache-cap --in eth1 -s #-f /root/port80-2.bpf 
@@ -21,6 +28,31 @@ queue-netsniff:
 
 direct-netsniff:
 	make run-netsniff
+
+iostest3:
+	iomode=3 make run-netsniff
+
+ext4-sdd:
+	mkfs.ext4 /dev/sdd
+	tune2fs -O ^has_journal /dev/sdd
+	mount -o data=writeback,noatime /dev/sdd /ssd
+
+minix-sdd:
+	mkfs.minix -y /dev/sdd
+	mount /dev/sdd /ssd
+
+iostest4:
+	iomode=4 make run-netsniff
+
+iostest5:
+	iomode=5 make run-netsniff
+
+direct-netsniff-iotest:
+	iomode=2 make run-netsniff
+
+direct-netsniff-iotest-direct:
+	iomode=1 make run-netsniff
+
 
 weblog:
 	make direct-netsniff | ./parse.pl | node data.js
@@ -74,7 +106,9 @@ build-netsniff:
 cp: build-netsniff
 	@rm -rf /var/www/xcache*
 	@cp xcache-jmp.pl xcache-charts.html /var/www
-	@ln -sf /c /var/www/xcache
+	@ln -sf /c /var/www/xcache-c
+	@ln -sf /d /var/www/xcache-d
+	@ln -sf /l /var/www/xcache-l
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
 	@cp urlsha.py /usr/lib/xcache/
@@ -111,6 +145,18 @@ dep2:
 		mkdir build && cd build && \
 		make
 	mkdir /c /d /l
+	#http://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.31.tar.bz2
+
+range-test:
+	cd /root/lighttpd-1.4.31 && make install
+	cd /root/lighttpd-1.4.31/src/.libs && cp *.so /usr/lib/lighttpd
+	make install
+	echo 12345678 > /var/www/xcache-a
+	lighttpd -D -f /etc/lighttpd/lighttpd.conf
+
+range-wget:
+	wget -O - "http://localhost/xcache-a?rs=2&rl=3"
+	#wget -O - "http://localhost/xcache-a"
 
 clean:
 	rm -rf *.o xcache-cap

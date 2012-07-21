@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+
+($f, $in) = @ARGV;
+exit if ! -f $f;
+($s, $e, $clen) = `cat $f` =~ /(\d+)-(\d+)\/(\d+)/;
+($s2, $e2) = $in =~ /(\d+)-(\d+)?/;
+$e2 = $clen-1 if !$e2;
+if ($s <= $s2 && $e2 <= $e && $e2 >= $s2) {
+	print "rs=",$s2-$s,"&rl=",$e2-$s2+1;
+}
+

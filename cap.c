@@ -166,7 +166,7 @@ static void timer(void)
 		if (!conn[i].h)
 			continue;
 		if (!conn[i].io) 
-			fin_conn(&conn[i], 'd');
+			fin_conn(&conn[i], 'r');
 		else {
 			conn[i].totio += conn[i].io;
 			io += conn[i].io;
@@ -179,12 +179,10 @@ static void timer(void)
 			active++;
 		}
 	}
-	double mb = 1024*1024;
-	printf("iomode=%d active %d io %.2fM max %d nrrsp %d "
-				 "iomin %.2lf iomax %.2lf iovg %.2lf\n", 
-			iomode, active, io/1024./1024, maxconn, nrrsp,
-			min/mb, max/mb, totio/active/mb
-			);
+	//double mb = 1024*1024;
+	printf("iomode=%d active %d io %.2fM max %d nrrsp %d\n",
+				 iomode, active, io/1024./1024, maxconn, nrrsp
+				);
 	nrrsp = 0; maxconn = 0;
 }
 
@@ -219,6 +217,8 @@ static int fuck_detect(uint8_t *p)
 }
 */
 
+static int t_pcnt;
+
 void xcache_process_packet(uint8_t *p, int plen)
 {
 	char *pay;
@@ -227,6 +227,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
 
+	t_pcnt++;
 	if (alrm) {
 		timer();
 		alrm = 0;
@@ -300,8 +301,13 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 static void sigalarm(int _D)
 {
+	if (!t_pcnt) {
+		timer();
+	} else {
+		alrm++;
+	}
 	alarm(1);
-	alrm++;
+	t_pcnt = 0;
 }
 
 void xcache_init(void)

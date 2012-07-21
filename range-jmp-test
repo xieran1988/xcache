@@ -1,0 +1,32 @@
+#!/bin/bash
+
+function T() {
+	echo $R > /tmp/R
+	echo -ne "R=$R in=$1 result="
+	./xcache-should-jmp /tmp/R $1
+	echo 
+}
+
+R="2-7/8"
+T 1-2
+T 2-2
+T 2-9
+T 10-11
+
+R="1-3/4"
+T 0-
+T 2-
+T 3-
+T 4-
+
+R="2-7/8"
+T 1-
+T 2-
+T 3-
+T 3-4
+
+R="1-3/4"
+T 1-2
+T 2-3
+T 3-3
+T 3-4

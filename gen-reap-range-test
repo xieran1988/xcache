@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+
+sub req {
+	$r = @_[0];
+	($s, $e, $clen) = $r =~ /(\d+)-(\d+)\/(\d+)/;
+	$f = `mktemp /c/C.XXXXXX`;
+	open F, ">$f";
+	print F "GET /youku/aaa.mp4\r\n";
+	print F "HTTP 200 OK\r\n";
+	print F "Content-Length: $clen\r\n";
+	print F "Content-Range: bytes $r\r\n" if $r;
+	print F "\r\n";
+	print F "12345678";
+	close F;
+	sleep 1;
+}
+
+	$f = `mktemp /c/C.XXXXXX`;
+	open F, ">$f";
+	print F "GET /youku/aaa.mp4\r\n";
+	print F "HTTP 200 OK\r\n";
+	print F "Content-Length: 5\r\n";
+	print F "\r\n";
+	print F "12345678";
+	close F;
+	sleep 1;
+
+req "0-1/5";
+req "2-4/5"; 
+req "1-4/5";
+req "0-4/5";
+

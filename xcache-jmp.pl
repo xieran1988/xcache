@@ -1,21 +1,26 @@
 #!/usr/bin/perl
 
-sub dumpenv {
-	use Data::Dumper;
-	print "Content-type: text/plain\r\n";
-	print "\r\n";
-	print Dumper %ENV;
-	exit;
+sub ll { `echo "@_[0]" >> /l/cgi`; }
+sub jmp { ll "-> @_[0]\n"; print "Location: @_[0]\r\n\r\n"; exit; }
+sub mine {
+	ll "mine"; 
+	jmp "http://$ENV{HTTP_HOST}/xcache-d/$sha/$fname?$r&y=yjwt08";
 }
+sub pass { ll "pass"; $uri =~ s/yjwt08/yjwt09/; jmp "http:/$uri"; }
+
 $uri = $ENV{REQUEST_URI};
-($sha) = split / /, `xcache-urlinfo $uri`;
-chomp $sha;
-$r = `xcache-inrange /d/R.$sha $ENV{HTTP_RANGE}`;
-`echo "r=$r uri=$uri sha=$sha env=$ENV{HTTP_RANGE}" >> /tmp/cgilog`;
-if ($r) {
-	print "Location: http://$ENV{HTTP_HOST}/xcache-d/CF.$sha?$r\r\n\r\n";
-} else {
-	$suf = $uri =~ /\?/ ? "&y=yjwt08" : "?y=yjwt08";
-	print "Location: http:/$uri$suf\r\n\r\n";
-}
+ll "uri: $uri";
+
+chomp(($sha, $ext, $fname) = split / /, `xcache-urlinfo $uri`);
+ll "sha:$sha crange:$ENV{HTTP_RANGE} fname:$fname";
+
+chomp($u = `xcache-urltest $uri`);
+ll "urltest: $u";
+if ($u !~ /^ok/) { ll "urltest failed"; pass; }
+
+chomp($r = `xcache-rangetest-jmp /d/R.$sha $ENV{HTTP_RANGE}`);
+ll "rangetest: $r";
+if (!$r) { ll "out-of-range"; pass; }
+
+mine;
 

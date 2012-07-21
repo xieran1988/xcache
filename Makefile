@@ -118,7 +118,7 @@ cp: build-netsniff
 clear:
 	@rm -rf /c/* /d/* /l/*
 
-install: init cp clear
+install: init cp 
 	@/etc/init.d/lighttpd restart
 
 dep:

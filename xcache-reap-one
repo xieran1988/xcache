@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+
+$mb = 1024.*1024;
+
+sub fuck { print "@_[0]\n\n"; exit; }
+sub ll { print "@_[0]\n"; }
+
+$f = $ARGV[0];
+($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+	$atime,$mtime,$ctime,$blksize,$blocks) = stat($f);
+$ptn = $1 if $f =~ /\w\.(.*)/;
+ll "DD: ==== $f";
+
+$du = $blocks*$blksize;
+fuck "EE: du:$du < size:$size" if ($du < $size);
+
+$s = `head -c 4096 $f`;
+$start = rindex($s, "\r\n\r\n")+4;
+fuck "EE: rnrn no found" if $start == -1;
+ll "DD: start $start";
+
+($url) = $s =~ /GET (\S+)/;
+($clen) = $s =~ /Content-Length: (\d+)/;
+($crange) = $s =~ /Content-Range: bytes (\S+)/;
+($host) = $s =~ /Host: (\S+)/;
+fuck "EE: url empty" if !$url;
+
+chomp(($sha, $ext, $fname) = split /\s+/, `xcache-urlinfo $url`);
+$filesize = $size - $start;
+ll "DD: url http://host$url";
+ll "DD: ext $ext";
+ll sprintf "DD: clen %.2lfM", $filesize/$mb;
+fuck "EE: clen $clen invalid" if ($clen < 1.5*$mb || $clen > 1024*$mb);
+fuck "EE: size<clen size $size clen $clen" if ($size < $clen);
+
+chomp($r = `xcache-urltest $url`);
+ll "DD: urltest $r";
+fuck "EE: urltest failed" if ($r !~ /^ok/);
+
+$R = "/d/R.$sha";
+$crange = sprintf "0-%d/%d", $clen-1, $clen if !$range;
+chomp($r = `xcache-rangetest-overwrite $R $crange`);
+ll "DD: crange $crange";
+ll "DD: rangetest $r";
+fuck "EE: rangetest failed" if ($r !~ /^ok/);
+
+$t = time;
+ll "DD: Done: $sha $ext $t";
+
+if ($ENV{do}) {
+	`tail -c $filesize $f > /d/CF.$sha.$ptn`;
+	`mv /d/CF.$sha.$ptn /d/CF.$sha`;
+	`head -c $start $f > /d/CH.$sha`;
+	`echo $crange > $R`;
+	`mkdir /d/$sha`; `ln -sf /d/CF.$sha /d/$sha/$fname`;
+}
+
+ll;

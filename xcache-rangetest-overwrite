@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+
+($f, $in) = @ARGV;
+($s2, $e2, $clen2) = $in =~ /(\d+)-(\d+)\/(\d+)/;
+if (! -f $f) {
+	print "ok [$s2,$e2]\n";
+} else {
+	($s, $e, $clen) = `cat $f` =~ /(\d+)-(\d+)\/(\d+)/;
+	if ($s2 <= $s && $e <= $e2 && ($s2 != $s || $e != $e2)) {
+		print "ok [$s2,$e2] >= [$s,$e]\n"
+	} else {
+		print "fail [$s,$e] >= [$s2,$e2]\n";
+	}
+}
+

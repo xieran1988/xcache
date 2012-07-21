@@ -111,10 +111,8 @@ cp: build-netsniff
 	@ln -sf /l /var/www/xcache-l
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
-	@cp urlsha.py /usr/lib/xcache/
-	@cp xcache-* /usr/bin/
+	@cp -dp xcache-* /usr/bin/
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
-	@cp reap.pl /usr/bin/xcache-proc
 	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
 
 clear:
@@ -131,32 +129,72 @@ dep:
 	python setup.py install
 	apt-get install python-flup libpcap-dev lighttpd python-dev
 
-dep2:
-	apt-get build-dep netsniff-ng
-	apt-get install -y --force-yes cmake libnl-dev flex bison \
-		libgeoip-dev ethtool
+apt-get:
+	apt-get install -y --force-yes ethtool lighttpd
+	apt-get build-dep -y --force-yes netsniff-ng lighttpd 
+
+download-netsniff:
 	git clone git://github.com/gnumaniacs/netsniff-ng.git
+
+patch-netsniff:
 	cd netsniff-ng/src && \
-		ln -sv ../../cap.c xcache_cap.c && \
-		ln -sv ../../queue.c xcache_queue.c && \
-		ln -svf ../../netsniff-ng-patch/CMakeLists.txt \
+		ln -sf ../../cap.c xcache_cap.c && \
+		ln -sf ../../queue.c xcache_queue.c && \
+		ln -sf ../../../netsniff-ng-patch/CMakeLists.txt \
 			netsniff-ng/CMakeLists.txt && \
-		ln -svf ../../netsniff-ng-patch/netsniff-ng.c netsniff-ng.c && \
-		mkdir build && cd build && \
-		make
-	mkdir /c /d /l
-	#http://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.31.tar.bz2
+		ln -sf ../../netsniff-ng-patch/netsniff-ng.c netsniff-ng.c
+
+cmake-netsniff:
+	cd netsniff-ng/src && mkdir -p build && cd build && cmake ..
+
+mkdir-cache:
+	mkdir -p /c /d /l
+	chmod 777 /c /d /l
+
+download-lighttpd:
+	wget http://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.31.tar.bz2
+	tar -xf lighttpd-1.4.31.tar.bz2 
+	rm lighttpd-1.4.31.tar.bz2
+
+patch-lighttpd:
+	cd lighttpd-1.4.31/src && \
+		ln -sf ../../lighttpd-patch/Makefile.am Makefile.am && \
+		ln -sf ../../lighttpd-patch/mod_range.c mod_range.c
+	ln -svf /usr/local/sbin/lighttpd /usr/sbin/lighttpd
+
+autogen-lighttpd:
+	cd lighttpd-1.4.31/ && ./autogen.sh && ./configure && make install
 
 range-test:
-	cd /root/lighttpd-1.4.31 && make install
-	cd /root/lighttpd-1.4.31/src/.libs && cp *.so /usr/lib/lighttpd
-	make install
 	echo 12345678 > /var/www/xcache-a
-	lighttpd -D -f /etc/lighttpd/lighttpd.conf
-
-range-wget:
 	wget -O - "http://localhost/xcache-a?rs=2&rl=3"
-	#wget -O - "http://localhost/xcache-a"
+
+uri := http://localhost/com/aaa.mp4 
+q := 2> /dev/null
+inrange-test: install
+	@echo "12345678" > /d/CF.3da812f
+	@echo "12345678" > /d/CH.3da812f
+	echo "100 2-9" > /d/R.3da812f
+	@wget -O - --header="Range: bytes=4-8" ${uri} ${q}
+	@echo "==34567"
+	@wget -O - --header="Range: bytes=2-9" ${uri} ${q}
+	@echo "==12345678"
+	@wget -O - --header="Range: bytes=2-" ${uri} ${q} || echo "error"
+	@wget -O - ${uri} ${q} || echo "error"
+	echo "11 4-" > /d/R.3da812f
+	@wget -O - --header="Range: bytes=4-8" ${uri} ${q}
+	@echo "==12345"
+	@wget -O - --header="Range: bytes=5-" ${uri} ${q}
+	@echo "==234567"
+	@wget -O - --header="Range: bytes=11-" ${uri} ${q} && echo 'len0'
+	@wget -O - ${uri} ${q} || echo "error"
+	echo "8" > /d/R.3da812f
+	@wget -O - --header="Range: bytes=4-7" ${uri} ${q}
+	@echo "==5678"
+	@wget -O - --header="Range: bytes=4-" ${uri} ${q}
+	@echo "==5678"
+	@wget -O - ${uri} ${q}
+	@echo "==12345678"
 
 clean:
 	rm -rf *.o xcache-cap

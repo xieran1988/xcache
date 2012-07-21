@@ -5,7 +5,7 @@ exit if ! -f $f;
 ($clen, $r) = split / /, `cat $f`;
 ($s, $e) = $r =~ /(\d+)-(\d+)?/;
 ($s2, $e2) = $in =~ /(\d+)-(\d+)?/;
-$e = $clen if !$e;
-$e2 = $clen if !$e2;
-print "rs=",$s2-$s,"&rl=",$e2-$s2 if ($s <= $s2 && $e2 <= $e);
+$e = $clen-1 if !$e;
+$e2 = $clen-1 if !$e2;
+print "rs=",$s2-$s,"&rl=",$e2-$s2+1 if ($s <= $s2 && $e2 <= $e);
 

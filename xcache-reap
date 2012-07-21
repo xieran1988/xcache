@@ -24,7 +24,7 @@ sub reap {
 			if ($clen > 1.5*1000000 && $start > 0 && $size > $clen) {
 				$cached++;
 				$filesize = $size - $start;
-				($sha, $ext) = split /\s+/, `/usr/lib/xcache/urlsha.py $url`;
+				($sha, $ext) = split /\s+/, `xcache-urlinfo $url`;
 				$mb = 1024.*1024;
 				printf "%.2lf $ext http://$host%s\n", $filesize/$mb, $url;
 				if (!`xcache-inrange /d/R.$sha $range`) {

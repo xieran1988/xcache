@@ -8,11 +8,12 @@ sub dumpenv {
 	exit;
 }
 $uri = $ENV{REQUEST_URI};
-$sha = `/usr/lib/xcache/urlsha.py $uri`;
+($sha) = split / /, `xcache-urlinfo $uri`;
 chomp $sha;
-$r = `xcahce-inrange /d/R.$sha $ENV{HTTP_RANGE}`;
+$r = `xcache-inrange /d/R.$sha $ENV{HTTP_RANGE}`;
+`echo "r=$r uri=$uri sha=$sha env=$ENV{HTTP_RANGE}" >> /tmp/cgilog`;
 if ($r) {
-	print "Location: http://$ENV{HTTP_HOST}/xcache/CF.$sha?$r\r\n\r\n";
+	print "Location: http://$ENV{HTTP_HOST}/xcache-d/CF.$sha?$r\r\n\r\n";
 } else {
 	$suf = $uri =~ /\?/ ? "&y=yjwt08" : "?y=yjwt08";
 	print "Location: http:/$uri$suf\r\n\r\n";

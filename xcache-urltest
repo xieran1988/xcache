@@ -1,8 +1,11 @@
 #!/usr/bin/perl
 
-$url = $ARGV[0];
-$ext = $ARGV[1];
 sub fuck { print "failed @_[0]\n"; exit; }
-fuck "youku start= unsupported" if ($url =~ /youku/ && $url =~ /start=/);
-print "ok\n";
+sub proc {
+	fuck "youku start= unsupported" if ($url =~ /youku/ && $url =~ /start=/);
+	print "ok\n";
+}
+($url, $ext) = @ARGV;
+if ($url) { proc; exit }
+else { while (<STDIN>) { chomp($url = $_); proc } }
 

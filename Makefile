@@ -1,5 +1,8 @@
 
-all: install
+all: 
+	xcache-stop
+	make install
+	xcache-start
 
 cap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
 
@@ -9,53 +12,46 @@ xcache-cap: cap.o queue.o main.o raw.o
 		$(shell pcap-config --libs) \
 		$(shell pkg-config python glib-2.0 --libs)
 
-screen: install
+all-start: install
+	/etc/init.d/lighttpd start
 	screen -dmS cap xcache-cap --in eth1 -s
-	screen -dmS reap xcache-proc
+	screen -dmS reap xcache-reap
 	screen -dmS logeth xcache-logeth
 
-screen-kill:
+all-stop:
+	/etc/init.d/lighttpd stop
 	-pkill xcache-cap
-	screen -S cap -X quit
-	screen -S reap -X quit
-	screen -S logeth -X quit
+	-screen -S cap -X quit
+	-screen -S reap -X quit
+	-screen -S logeth -X quit
 
 run-netsniff: install
 	xcache-cap --in eth1 -s #-f /root/port80-2.bpf 
 
-queue-netsniff:
-	mode=2 make run-netsniff
-
-direct-netsniff:
-	make run-netsniff
-
-iostest3:
-	iomode=3 make run-netsniff
+umount-ssd:
+	umount /dev/sdd
 
 ext4-sdd:
 	mkfs.ext4 /dev/sdd
 	tune2fs -O ^has_journal /dev/sdd
 	mount -o data=writeback,noatime /dev/sdd /ssd
 
-minix-sdd:
-	mkfs.minix -y /dev/sdd
-	mount /dev/sdd /ssd
+umount-hd:
+	umount /dev/sdc
 
-iostest4:
-	iomode=4 make run-netsniff
+ext4-hd:
+	mkfs.ext4 /dev/sdc
+	tune2fs -O ^has_journal /dev/sdc
+	mount -o data=writeback,noatime /dev/sdc /hd
 
-iostest5:
-	iomode=5 make run-netsniff
-
-direct-netsniff-iotest:
-	iomode=2 make run-netsniff
-
-direct-netsniff-iotest-direct:
-	iomode=1 make run-netsniff
-
+mkdir-hd:
+	mkdir /hd/l
+	mkdir /hd/d
+	ln -sf /hd/l /l
+	ln -sf /hd/d /d
 
 weblog:
-	make direct-netsniff | ./parse.pl | node data.js
+	./xcache-taillog | node data.js
 
 save-netsniff:
 	mode=1 make run-netsniff
@@ -97,11 +93,31 @@ init:
 	@mkdir -p /usr/lib/xcache
 	@mkdir -p /var/lib/xcache
 	@mkdir -p /var/lib/xcache-log
-	@cp xcache /etc/init.d
 	@update-rc.d xcache defaults
 
 build-netsniff:
 	cd netsniff-ng/src/build && make
+
+stop-all:
+	xcache-stop
+	make stop-lighttpd
+
+restart-all:
+	make stop-all
+	make start-all
+
+start-all:
+	xcache-start
+	make start-lighttpd
+
+stop-lighttpd:
+	/etc/init.d/lighttpd stop
+
+start-lighttpd:
+	/etc/init.d/lighttpd start
+
+restart-lighttpd:
+	/etc/init.d/lighttpd restart
 
 cp: build-netsniff
 	@rm -rf /var/www/xcache*
@@ -109,17 +125,18 @@ cp: build-netsniff
 	@ln -sf /c /var/www/xcache-c
 	@ln -sf /d /var/www/xcache-d
 	@ln -sf /l /var/www/xcache-l
+	@ln -sf /root/xcache/ /var/www/xcache-dev
 	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
-	@cp -dp xcache-* /usr/bin/
 	@cp mod_h264_streaming.so /usr/lib/lighttpd
 	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
+	@cp -dp xcache-* /usr/bin/
 
 clear:
 	@rm -rf /c/* /d/* /l/*
 
 install: init cp 
-	@/etc/init.d/lighttpd restart
+#	@/etc/init.d/lighttpd restart
 
 dep:
 	cd /tmp && \
@@ -148,7 +165,7 @@ cmake-netsniff:
 	cd netsniff-ng/src && mkdir -p build && cd build && cmake ..
 
 mkdir-cache:
-	mkdir -p /c /d /l
+	mkdir -p /c /d /l /tl
 	chmod 777 /c /d /l
 
 download-lighttpd:
@@ -165,9 +182,24 @@ patch-lighttpd:
 autogen-lighttpd:
 	cd lighttpd-1.4.31/ && ./autogen.sh && ./configure && make install
 
+wget-fcgi-perl:
+	wget http://search.cpan.org/CPAN/authors/id/F/FL/FLORA/FCGI-0.74.tar.gz
+
+build-fcgi-perl:
+	./configure
+	perl Makefile.PL
+	make install
+
 range-test:
 	echo 12345678 > /var/www/xcache-a
 	wget -O - "http://localhost/xcache-a?rs=2&rl=3"
+
+jmp-test:
+	@echo "12345678" > /d/CF.3da812f
+	@echo "12345678" > /d/CH.3da812f
+	@echo "0-4/5" > /d/R.3da812f
+	wget -O - http://localhost/com/aaa.mp4
+
 
 uri := http://localhost/com/aaa.mp4 
 q := 2> /dev/null
@@ -202,3 +234,26 @@ clean:
 ctest:
 	gcc /root/t.c -o /tmp/c
 	/tmp/c
+
+update-lighttpd:
+	cp 10-xcache.conf /etc/lighttpd/conf-enabled
+	cp -dp xcache-jmp.pl /var/www/
+	cp -dp xcache-fastjmp.py /usr/bin
+	ln -sf /root/xcache /var/www/xcache-dev
+
+update-xcache:
+	xcache-stop
+	make install
+	xcache-start
+
+test-fastjmp:
+	make install && wget --header="Range: bytes=1-100" -O /tmp/o http://localhost/xcache-fastjmp/
+	cat /tmp/o
+
+test-fastjmp-py:
+	echo "0-8/9" > /d/R.3da812f
+	./xcache-fastjmp.py "http://localhost/www.youku.com/aaa.mp4?dddd&y=yjwt08" $c
+	./xcache-fastjmp.py "http://localhost/www.youku.com/bbb.mp4?dddd&y=yjwt08" 
+test-fastjmp-py2: update-lighttpd
+	wget -d -O - http://localhost/youku.com/bbb.mp4
+

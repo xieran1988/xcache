@@ -1,0 +1,12 @@
+#!/usr/bin/perl
+
+open F, ">/l/df";
+while (1) {
+	$t = time;
+	chomp($sdd = `df | awk '/sdd/{print \$3" "\$4" "\$5}'`);
+	chomp($sdc = `df | awk '/sdc/{print \$3" "\$4" "\$5}'`);
+	print "$sdd $sdc $t\n";
+	sleep 1;
+}
+
+

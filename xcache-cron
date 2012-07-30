@@ -1,0 +1,8 @@
+#!/bin/sh
+
+exit
+xcache-stop
+cd /l/ && tar -cf /bl/`date --date="yesterday" +"%Y-%m-%d"` /l/* 
+rm -rf /l/*
+xcache-start
+

@@ -2,9 +2,10 @@
 
 open F, ">/l/E";
 while (1) {
-	$a = int(`cat /proc/net/dev | grep eth1 | awk '{print \$2}'`);
+	$a = int(`cat /proc/net/dev | grep eth0 | awk '{print \$2}'`);
+	$b = int(`cat /proc/net/dev | grep eth1 | awk '{print \$2}'`);
 	$t = time;
-	print F "$a $t\n";
+	print F "$a $b $t\n";
 	sleep 1;
 }
 

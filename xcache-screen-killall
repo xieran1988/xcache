@@ -1,0 +1,8 @@
+#!/usr/bin/perl
+
+open F, "screen -ls |";
+while (<F>) {
+	`screen -X -S $1 quit` if /(\d+\.\w+)/;
+}
+
+

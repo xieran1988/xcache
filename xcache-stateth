@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+#
+$| = 1;
+$mb = 1024.*1024;
+while (1) {
+	open F, "/proc/net/dev";
+	while (<F>) {
+		($b0, $p0) = /\s(\d+)/g if /eth0/;
+		($b1, $p1) = /\s(\d+)/g if /eth1/;
+	}
+	$sb0 = $b0 - $lb0; $sp0 = $p0 - $lp0;
+	$sb1 = $b1 - $lb1; $sp1 = $p1 - $lp1;
+	if ($i++) {
+		printf "%d %d eth0 %.2fMb/s %d pkt/s eth1 %.2fMb/s %d pkt/s\n", 
+						$sb0, $sb1, $sb0*8/$mb, $sp0, $sb1*8/$mb, $sp1;
+	}
+	$lb0 = $b0; $lp0 = $p0; $lb1 = $b1; $lp1 = $p1;
+	sleep 1;
+}
+

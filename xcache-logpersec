@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+
+open F, "tail -f /l/cgi |";
+$SIG{ALRM} = sub { 
+	print "$mine $pass ", time, "\n"; $mine = 0; $pass = 0; 
+	alarm 1 
+};
+alarm 1 ;
+while (<F>) {
+	$mine++ if /^mine/;
+	$pass++ if /^pass/;
+}
+

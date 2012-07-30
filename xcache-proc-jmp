@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+
+open L, "|/root/xcache/xcache-urlinfo|";
+sub ll { `echo "@_[0]" >> /l/cgi`; print "@_[0]\n"; }
+while ($l = <STDIN>) {
+	print "$l";
+	print L "$l\n";
+	$r = <L>;
+#	print I "$uri\n"; chomp(($sha, $ext, $fname) = split /\S+/, <I>);
+#	print U "$uri $cr\n"; chomp($ut = <U>); goto pass if $ut !~ /^ok/;
+#	print R "$uri\n"; chomp($rt = <R>); goto pass if !$rt; 
+	#mime: $d = "mine";
+	#$jl = "http://$host/xcache-d/$sha/$fname?$r&y=yjwt08"; goto ok;
+	#pass: $d = "pass"; $jl = "http:/$uri"; $jl =~ s/yjwt08/yjwt09/; 
+	#ok: ll "$d $uri $jl $sha $ext $fname cr=$cr ut=$ut rt=$rt"; 
+}
+

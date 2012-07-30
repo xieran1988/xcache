@@ -1,0 +1,9 @@
+#!/bin/sh
+
+pkill xcache-cap
+screen -S cap -X quit
+screen -S reap -X quit
+screen -S logeth -X quit
+exit 0
+
+

@@ -4,14 +4,16 @@
 	<script language="javascript" type="text/javascript" src="http://code.highcharts.com/highcharts.js"></script>  
 	<script language="javascript" type="text/javascript" src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>  
 	<script type="text/javascript">  
-		function table(title, ytitle, min, max, series) {
+		function table(title, ytitle, series) {
 			$('body').append($('div').attr('id', title)
-					.css('width', '500px').css('height', '200px'));
+					.css('width', '370px').css('height', '200px')
+					.css('float', 'left')
+					);
 			return new Highcharts.Chart({
 				chart: { renderTo:title, type:'spline', animation:false },
 				title: { text:title },
 				xAxis: { type:'datetime', tickPixelInterval:200 },
-				yAxis: { title: { text:ytitle }, max:max, min:min},
+				yAxis: { title: { text:ytitle } },
 				series: series
 			});
 		}
@@ -20,9 +22,17 @@
 		function D(s) { return {name:s, data:_d}; }
 		$(document).ready(function() { 
 			var ta = [
-				table('network', 'Mb/s', 0, 800, [D('tot'), D('io')]),
-				table('entries', 'count', 0, 30, [D('complete'), D('hole')]),
-				table('hash', 'count', 0, 800, [D('ht')]),
+				table('cpu-usage', '%', [D('c_all')]),
+				table('hd-usage', 'GB', [D('d_hd')]),
+				table('ssd-usage', 'GB', [D('d_ssd')]),
+				table('hash-count', 'count/s', [D('ht_active'), D('ht_max')]),
+				table('files', 'count/s', [
+					D('f_all'), D('f_delsmall'), D('f_zio'), D('f_rst'),
+					D('f_reget')
+				]),
+				table('network-io', 'Mb/s', [D('io_eth0'), D('io_eth1')]),
+				table('ssd-io', 'MB/s', [D('io_ssd')]),
+				table('http-jmps', 'count/s', [D('jmp_pass'), D('jmp_mine')]),
 			];
 			io.connect('http://'+window.location.hostname+':8889')
 				.on('news', function (data) {

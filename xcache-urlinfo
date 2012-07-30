@@ -87,6 +87,15 @@ class XCacheURL():
 			self.start = 0.0
 
 if __name__ == '__main__':
-	u = XCacheURL(sys.argv[1])
-	print u.sha, u.ext, u.basename
+	def dump(s):
+		u = XCacheURL(s)
+		print u.sha, u.ext, u.basename, 'end'
+	if len(sys.argv) > 1:
+		dump(sys.argv[1])
+	else:
+		while True:
+			s = sys.stdin.readline().strip()
+			if s == '':
+				break
+			dump(s)
 

@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+
+open F, "tail -f /l/L|";
+$SIG{ALRM} = sub { 
+	print "$done $flvmp4 $other $1 $s2 $s3 $s4 $s5 ", time, "\n"; 
+	zero;
+	alarm 1;
+};
+sub zero {
+	$done = 0; $s1 = 0; $s2 = 0; $s3 = 0; $s4 = 0; $s5 = 0;
+	$flvmp4 = 0; $other = 0;
+}
+zero;
+alarm 1 ;
+$mb = 1024*1024;
+while (<F>) {
+	if (/Done: (\d+) (\S+) (\S+) (\S+)/) {
+		$done++; $sz = $1; $ext = $3; $url = $4;
+		$s1++ if ($sz > 1*$mb && $sz < 5*$mb);
+		$s2++ if ($sz > 5*$mb && $sz < 10*$mb);
+		$s3++ if ($sz > 10*$mb && $sz < 20*$mb);
+		$s4++ if ($sz > 20*$mb && $sz < 40*$mb);
+		$s5++ if ($sz > 40*$mb);
+		if ($ext =~ /(flv|mp4)/) {
+			$flvmp4++;
+		} else {
+			$other++;
+		}
+	}
+}
+

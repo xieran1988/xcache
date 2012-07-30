@@ -191,7 +191,7 @@ URIHANDLER_FUNC(mod_range_path_handler) {
 	if (s) {
 		char *ss = strstr(s, "rs=");
 		char *es = strstr(s, "rl=");
-		log_error_write(srv, __FILE__, __LINE__, "s", s);
+		//log_error_write(srv, __FILE__, __LINE__, "s", s);
 		if (ss && es) {
 			http_chunk_append_file(srv, con, con->physical.path, 
 					atoi(ss+3), atoi(es+3));

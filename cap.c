@@ -14,6 +14,8 @@
 #include <arpa/inet.h>
 #include <sys/fcntl.h>
 
+#define TIMEOUT 3
+
 void xcache_process_packet(uint8_t *p, int plen);
 void xcache_init(void);
 
@@ -71,7 +73,7 @@ static void file_close(conn_t *c) {
 
 static unsigned int hash(int a, int b, int c, int d) {
 	int r = (a*33+b*37+c*23+d*3);
-	return r < 0 ? -r : r;
+	return r;
 }
 
 static char *mymktemp(char *p) { return mktemp(p); }
@@ -199,7 +201,6 @@ void xcache_process_packet(uint8_t *p, int plen)
 			nrrsp++; 
 			file_open(c, c->p);
 			file_write(c, c->get, c->reqlen);
-			file_write(c, pay, paylen);
 		}
 		file_seek(c, pos + c->reqlen);
 		file_write(c, pay, paylen);
@@ -214,7 +215,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 static void sigalarm(int _D)
 {
 	alrm++;
-	alarm(1);
+	alarm(TIMEOUT);
 	t_pcnt = 0;
 }
 
@@ -224,7 +225,7 @@ void xcache_init(void)
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
 	signal(SIGALRM, sigalarm);
-	alarm(1);
+	alarm(TIMEOUT);
 	setbuf(stdout, NULL); 
 }
 

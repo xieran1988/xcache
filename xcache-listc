@@ -1,0 +1,16 @@
+#!/usr/bin/python
+
+import os, sys, marshal
+from flup.server.fcgi import *
+from urlparse import *
+from xcache import *
+import logging 
+
+for i in os.listdir('/c/'):
+	path = '/c/' + i
+	size = os.path.getsize(path)
+	get = open(path).readline().strip()
+	print '%.2fM'%(size/1024./1024), get
+	#u = XCacheURL(url)
+
+

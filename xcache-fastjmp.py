@@ -29,7 +29,12 @@ def check(url, cr):
 		e = int(e)
 		clen = int(clen)
 		start = int(start)
-		if cr is None:
+		return \
+				'mine', \
+				'http://%s/xcache-d/%s/%s?hl=%d&rs=%d&re=%d&clen=%d&y=yjwt08' % \
+				(u.u.hostname, u.sha, u.basename, start, s, e, clen), \
+				err
+		if True or cr is None:
 			err += '|cr=None'
 			s2 = 0
 			e2 = clen - 1

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+watch --interval=1 xcache-listc
+

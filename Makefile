@@ -102,6 +102,11 @@ stop-all:
 	xcache-stop
 	make stop-lighttpd
 
+clear-and-restart-all:
+	make clear
+	make restart-all
+
+
 restart-all:
 	make stop-all
 	make install
@@ -135,12 +140,17 @@ cp: build-netsniff
 
 clear:
 	@rm -rf /c/* /d/* /l/*
+	touch /l/L
 
 touch-log:
 	umask 000 && touch /l/cgi2
 
-install: init cp 
+install: init cp turn-off-gso
 #	@/etc/init.d/lighttpd restart
+#
+
+turn-off-gso:
+	. /root/xcache/rc.local
 
 dep:
 	cd /tmp && \
@@ -151,7 +161,7 @@ dep:
 	apt-get install python-flup libpcap-dev lighttpd python-dev
 
 apt-get:
-	apt-get install -y --force-yes ethtool lighttpd screen
+	apt-get install -y --force-yes ethtool lighttpd screen curl
 	apt-get build-dep -y --force-yes netsniff-ng lighttpd
 
 download-netsniff:
@@ -183,6 +193,9 @@ patch-lighttpd:
 		ln -sf ../../lighttpd-patch/mod_range.c mod_range.c
 	ln -svf /usr/local/sbin/lighttpd /usr/sbin/lighttpd
 
+build-lighttpd:
+	cd lighttpd-1.4.31 && make install
+
 autogen-lighttpd:
 	cd lighttpd-1.4.31/ && ./autogen.sh && ./configure && make install
 
@@ -194,6 +207,16 @@ build-fcgi-perl:
 	perl Makefile.PL
 	make install
 
+pre := http://localhost/xcache-testfile
+mod-range-test:
+	make build-lighttpd
+	make restart-lighttpd
+	echo 123456789 > /var/www/xcache-testfile
+	curl "${pre}"
+	curl -r 0-1 "${pre}" && echo
+	curl -r 0-1 "${pre}?hl=2&rs=2&re=4&clen=7" && echo
+	curl "${pre}?hl=2&rs=0&re=6&clen=7" && echo
+
 range-test:
 	echo 12345678 > /var/www/xcache-a
 	wget -O - "http://localhost/xcache-a?rs=2&rl=3"
@@ -203,7 +226,6 @@ jmp-test:
 	@echo "12345678" > /d/CH.3da812f
 	@echo "0-4/5" > /d/R.3da812f
 	wget -O - http://localhost/com/aaa.mp4
-
 
 uri := http://localhost/com/aaa.mp4 
 q := 2> /dev/null
@@ -244,6 +266,12 @@ update-lighttpd:
 	cp -dp xcache-jmp.pl /var/www/
 	cp -dp xcache-fastjmp.py /usr/bin
 	ln -sf /root/xcache /var/www/xcache-dev
+
+update-restart-lighttpd:
+	make stop-lighttpd
+	make update-lighttpd
+	make build-lighttpd
+	make start-lighttpd
 
 update-xcache:
 	xcache-stop

@@ -104,6 +104,7 @@ stop-all:
 
 restart-all:
 	make stop-all
+	make install
 	make start-all
 
 start-all:
@@ -135,6 +136,9 @@ cp: build-netsniff
 clear:
 	@rm -rf /c/* /d/* /l/*
 
+touch-log:
+	umask 000 && touch /l/cgi2
+
 install: init cp 
 #	@/etc/init.d/lighttpd restart
 
@@ -147,8 +151,8 @@ dep:
 	apt-get install python-flup libpcap-dev lighttpd python-dev
 
 apt-get:
-	apt-get install -y --force-yes ethtool lighttpd
-	apt-get build-dep -y --force-yes netsniff-ng lighttpd 
+	apt-get install -y --force-yes ethtool lighttpd screen
+	apt-get build-dep -y --force-yes netsniff-ng lighttpd
 
 download-netsniff:
 	git clone git://github.com/gnumaniacs/netsniff-ng.git

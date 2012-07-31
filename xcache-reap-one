@@ -24,7 +24,6 @@ $s = `head -c 4096 $f`;
 fuck "EE: url empty" if !$url;
 
 chomp(($sha, $ext, $fname) = split /\s+/, `xcache-urlinfo "$url"`);
-$filesize = $size - $start;
 ll "DD: url http://$host$url";
 ll "DD: ext $ext";
 ll sprintf "DD: clen %.2lfM", $clen/$mb;
@@ -33,7 +32,7 @@ fuck "EE: size<clen size $size clen $clen" if ($size < $clen);
 
 $start = rindex($s, "\r\n\r\n")+4;
 fuck "EE: rnrn no found" if $start == -1;
-ll "DD: start $start";
+ll "DD: start $start size $size";
 
 chomp($r = `xcache-urltest $url`);
 ll "DD: urltest $r";
@@ -47,13 +46,12 @@ ll "DD: rangetest $r";
 fuck "EE: rangetest failed" if ($r !~ /^ok/);
 
 $t = time;
-ll "DD: Done: $filesize $sha $ext $url $t";
+ll "DD: Done: $clen $sha $ext $url $t";
 
 if ($ENV{do}) {
-	`tail -c $filesize $f > /d/CF.$sha.$ptn`;
-	`mv /d/CF.$sha.$ptn /d/CF.$sha`;
+	`mv $f /d/CF.$sha`;
 	`head -c $start $f > /d/CH.$sha`;
-	`echo $crange > $R`;
+	`echo $crange $start > $R`;
 	`mkdir -p /d/$sha`; `ln -sf /d/CF.$sha /d/$sha/$fname`;
 }
 

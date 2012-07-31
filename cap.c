@@ -20,21 +20,22 @@ void xcache_init(void);
 #define dbg printf
 
 typedef struct {
-#define IOBUFSIZ 8192
-	char buf[IOBUFSIZ + 2000];
+//	struct list_head l;
 	double t;
 	FILE *f;
 	int fd;
 	char p[256];
 	char get[1600];
-	int totio, io, h, ack, reqlen;
+	int totio, io, ack, reqlen;
+	unsigned int h;
 	int rsp;
 	char s;
 	int buflen;
-} conn_t __attribute__ ((aligned (IOBUFSIZ)));
+} conn_t ;
 
 #define NR 4800
 conn_t conn[NR];
+//struct list_head conns_active;
 static int nrconn, maxconn;
 static FILE *logf;
 
@@ -68,8 +69,9 @@ static void file_close(conn_t *c) {
 		fclose(c->f);
 }
 
-static int hash(int a, int b, int c, int d) {
-	return a*33+b*37+c*23+d*3;
+static unsigned int hash(int a, int b, int c, int d) {
+	int r = (a*33+b*37+c*23+d*3);
+	return r < 0 ? -r : r;
 }
 
 static char *mymktemp(char *p) { return mktemp(p); }
@@ -94,7 +96,7 @@ static void fin_conn(conn_t *c, char *s)
 
 static void timer(void)
 {
-	int i, active=0, io=0;
+	int i, active = 0, n = 0;
 	for (i = 0; i < NR; i++) {
 		conn_t *c = &conn[i];
 		if (!c->h)
@@ -102,15 +104,16 @@ static void timer(void)
 		if (c->io)
 			active++;
 		if (!c->io)
-			fin_conn(&conn[i], "zero-io");
+			fin_conn(c, "zero-io");
 		c->io = 0;
+		n++;
 	}
 	double mb = 1024*1024;
 	fprintf(getenv("logstdout") ? stdout : logf, 
 					"info %d %d %d %d %d %d "
-					"active %d io %.2fM max %d nrrsp %d\n",
+					"active %d ht %d totio %.2fM max %d nrrsp %d\n",
 				 	totio, maxconn, active, f_delsmall, f_got, (int)time(0),
-					active, totio/mb, maxconn, nrrsp
+					active, n, totio/mb, maxconn, nrrsp
 					);
 	nrrsp = maxconn = 0;
 	f_delsmall = f_got = totio = 0;
@@ -154,42 +157,42 @@ void xcache_process_packet(uint8_t *p, int plen)
 //		printf("type=%.4x iplen=%d paylen=%d totlen=%d\n", 
 //			*(uint16_t*)(p+12), iplen, paylen, totlen);
 
-	int h = dport == 80 ? 
+	unsigned int h = (dport == 80) ? 
 		hash(sip, dip, sport, dport) : 
 		hash(dip, sip, dport, sport);
 
-	int i;
-	conn_t *c = NULL;
+	int i, j;
+	conn_t *c;
 
-	for (i = 0; i < NR; i++)
-		if (conn[i].h == h) {
-			c = &conn[i];
+ 	j = (h % NR);
+	for (i = 0; i < NR; i++) {
+		c = &conn[j];
+		if (c->h == h || !c->h) 
 			break;
-		}
+		j = (j + 1) % NR;
+	}
+	if (i == NR)
+		return ;
 
 	if (paylen > 3 && !strncmp(pay, "GET", 3)) {
-		if (c)
+		if (c->h)
 			fin_conn(c, "re-get");
 		else {
-			for (i = 0; i < NR; i++)
-				if (!conn[i].h) {
-					c = &conn[i];
-					c->h = h;
-					c->ack = (int)ack;
-					strcpy(c->p, "/c/A.XXXXXX");
-					mymktemp(c->p);
-					memcpy(c->get, pay, paylen);
-					c->reqlen = paylen;
-					nrconn++;
-					if (nrconn > maxconn)
-						maxconn = nrconn;
-					break;
-				}
+			fprintf(logf, "get %d\n", h);
+			c->h = h;
+			c->ack = (int)ack;
+			strcpy(c->p, "/c/A.XXXXXX");
+			mymktemp(c->p);
+			memcpy(c->get, pay, paylen);
+			c->reqlen = paylen;
+			nrconn++;
+			if (nrconn > maxconn)
+				maxconn = nrconn;
 		}
 		return ;
 	}
 
-	if (c) {
+	if (c->h) {
 		int pos = (int)seq - c->ack;
 		if (!c->rsp) {
 			c->rsp++; 
@@ -203,7 +206,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 	}
 
 	if (tcpf & 5) {
-		if (c)
+		if (c->h)
 			fin_conn(c, "fin-rst");
 	}
 }
@@ -211,12 +214,13 @@ void xcache_process_packet(uint8_t *p, int plen)
 static void sigalarm(int _D)
 {
 	alrm++;
-	alarm(4);
+	alarm(1);
 	t_pcnt = 0;
 }
 
 void xcache_init(void)
 {
+//	INIT_LIST_HEAD(&conns_active);
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
 	signal(SIGALRM, sigalarm);

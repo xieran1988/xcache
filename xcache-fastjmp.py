@@ -14,34 +14,42 @@ def log(s):
 
 def check(url, cr):
 	u = XCacheURL(url)
+	err = 'op'
 	try:
 		if 'youku' in url and 'start' in url:
+			err += '-youku-start'
 			raise
 		R = '/d/R.' + u.sha
-		if not os.path.exists(R):
-			raise
+		err += '|open-file-%s' % R
 		rs = open(R, 'r').read()
-		r = re.match(r'(\d+)-(\d+)/(\d+)', rs)
-		s, e, clen = r.groups()
+		err += '|matchR'
+		r = re.match(r'(\d+)-(\d+)/(\d+) (\d+)', rs)
+		s, e, clen, start = r.groups()
 		s = int(s)
 		e = int(e)
 		clen = int(clen)
+		start = int(start)
 		if cr is None:
+			err += '|cr=None'
 			s2 = 0
 			e2 = clen - 1
 		else:
-			r = re.match(r'(\d+)-(\d+)?', cr)
+			err += '|cr=%s' % cr
+			r = re.match(r'bytes=(\d+)-(\d+)?', cr)
 			s2, e2 = r.groups()
 			s2 = int(s2)
 			if e2 is None:
 				e2 = clen - 1
+			else:
+				e2 = int(e2)
+		err += '|range-%d-%d-%d-%d' % (s, e, s2, e2)
 		if s <= s2 and e2 <= e and e2 >= s2:
-			return 'mine', 'http://%s/xcache-d/%s/%s?rs=%d&rl=%d' % \
-					(u.u.hostname, u.sha, u.basename, s2-s, e2-s2+1)
+			return 'mine', 'http://%s/xcache-d/%s/%s?rs=%d&rl=%d&y=yjwt08' % \
+					(u.u.hostname, u.sha, u.basename, s2-s+start, e2-s2+1), err
 		raise
 	except:
 		return 'pass', 'http:/%s?%s' % (
-				u.u.path, u.u.query.replace('yjwt08', 'yjwt09'))
+				u.u.path, u.u.query.replace('yjwt08', 'yjwt09')), err
 
 if os.getuid() == 0:
 	if len(sys.argv) == 3:
@@ -52,8 +60,8 @@ else:
 	def myapp(env, start_rsp):
 		cr = env.get('HTTP_RANGE')
 		uri = 'http://%s%s' % (env['HTTP_HOST'], env['REQUEST_URI'])
-		d, r = check(uri, cr)
-		log('%s %s => %s\n' % (d, uri, r))
+		d, r, err = check(uri, cr)
+		log('%s %s => %s %s\n' % (d, uri, r, err))
 		start_rsp('302 Found', [('Location', r)])
 		return ''
 	log('starts')

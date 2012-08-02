@@ -11,6 +11,7 @@ if __name__ == '__main__':
 		s, e = i[:2]
 		print s, e
 	print 'covers'
+	tot = 0
 	i = 0
 	while i < len(m):
 		s, e = m[i][:2]
@@ -19,7 +20,9 @@ if __name__ == '__main__':
 			e = m[j][1]
 			j += 1
 		i = j
+		tot += e - s + 1
 		print s, e
+	print 'tot', tot, 'left', clen - tot
 
 		
 

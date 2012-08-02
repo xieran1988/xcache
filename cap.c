@@ -181,18 +181,16 @@ void xcache_process_packet(uint8_t *p, int plen)
 	if (paylen > 3 && !strncmp(pay, "GET", 3)) {
 		if (c->h)
 			fin_conn(c, "re-get", 'G');
-		else {
-			fprintf(logf, "get %d\n", h);
-			c->h = h;
-			c->ack = (int)ack;
-			strcpy(c->p, "/c/A.XXXXXX");
-			mymktemp(c->p);
-			memcpy(c->get, pay, paylen);
-			c->reqlen = paylen;
-			nrconn++;
-			if (nrconn > maxconn)
-				maxconn = nrconn;
-		}
+		fprintf(logf, "get %d\n", h);
+		c->h = h;
+		c->ack = (int)ack;
+		strcpy(c->p, "/c/A.XXXXXX");
+		mymktemp(c->p);
+		memcpy(c->get, pay, paylen);
+		c->reqlen = paylen;
+		nrconn++;
+		if (nrconn > maxconn)
+			maxconn = nrconn;
 		return ;
 	}
 

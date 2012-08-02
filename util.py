@@ -140,14 +140,14 @@ def jmp(path, qry, ran):
 		err += '%s,%s' % (r[0], r[2])
 		if r[0] == 'ok':
 			logw('mine %s %s\n' % (path, err))
-			return 'mine', r[1]
+			return 'mine', r[1], 'bytes %d-%d/%d' % (rs, re, clen)
 #	u = XCacheURL(s)
 	except:
 		traceback.print_exc()
 		pass
 	to = 'http:/%s?%s' % (path, qry.replace('yjwt08', 'yjwt09'))
 	logw('pass %s %s\n' % (to, err))
-	return 'pass', to
+	return 'pass', to, ''
 
 	return pass_url(path, qry, err)
 
@@ -166,7 +166,7 @@ logw('starts\n')
 #	return 'mine', '/var/xxx'
 
 if __name__ == '__main__':
-	if sys.argv[1] == 'testjmp':
+	if len(sys.argv) > 1 and sys.argv[1] == 'testjmp':
 		u = XCacheURL(sys.argv[2])
 		ran = sys.argv[3]
 		print 'path', u.u.path, 'query', u.u.query, 'ran', ran

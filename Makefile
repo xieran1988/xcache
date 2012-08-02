@@ -270,7 +270,7 @@ test-reap:
 test-mod-range:
 	make update-restart-lighttpd
 	make test-pyjmp
-	curl -r 1-9 "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
+	curl -v -r 1-9 "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
 	wget -O - "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
 #	wget -O - "http://localhost/dddd?302"
 

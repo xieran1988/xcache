@@ -212,6 +212,7 @@ static int call_jmp(
 	//log_error_write(srv, __FILE__, __LINE__, "d", r);
 	PyObject *r1 = PyTuple_GetItem(r, 0);
 	PyObject *r2 = PyTuple_GetItem(r, 1);
+	PyObject *r3 = PyTuple_GetItem(r, 2);
 	char *s1 = PyString_AsString(r1);
 	log_error_write(srv, __FILE__, __LINE__, "ss", "jmp=", s1);
 	if (*s1 == 'm') {
@@ -219,6 +220,13 @@ static int call_jmp(
 		int i;
 		log_error_write(srv, __FILE__, __LINE__, "sd", "listsize=", ls);
 		con->file_finished = 1;
+		if (ran) {
+			char *cran = PyString_AsString(r3);
+			con->http_status = 206;
+			response_header_insert(srv, con, 
+					CONST_STR_LEN("Content-Range"), 
+					cran, strlen(cran));
+		}
 		for (i = 0; i < ls; i++) {
 			PyObject *t = PyList_GetItem(r2, i);
 			PyObject *t1 = PyTuple_GetItem(t, 0);

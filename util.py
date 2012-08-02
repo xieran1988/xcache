@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re, os, hashlib, marshal, time, random
+import re, os, hashlib, marshal, time, random, sys, traceback
 from urlparse import *
 
 cache = '/var/lib/xcache/'
@@ -87,6 +87,8 @@ class XCacheURL():
 			self.start = 0.0
 
 def calc_http_range(ran, clen):
+	if ran is None:
+		return 0, clen-1
 	if not re.match(r'^(\d+)?-(\d+)?$', ran):
 		return 
 	s, e = ran.split('-')
@@ -98,7 +100,7 @@ def calc_http_range(ran, clen):
 		return 0, int(e)
 
 def calc_rs(rlist, rs, re, clen):
-	print '[%d,%d]'%(rs,re), clen
+	err = ''
 	sfrom = rs
 	r = []
 	for t in rlist:
@@ -107,13 +109,15 @@ def calc_rs(rlist, rs, re, clen):
 			to = min(e, re)
 			fstart = sfrom - s + hl
 			flen = to - sfrom + 1
-			print '[%d,%d]'%(s,e), 'write', '[%d,%d]'%(sfrom,to)
 			r.append((path, fstart, flen))
-			print 'file=', open(path).read()[fstart:fstart+flen]
+			print '[%d,%d]=>[%d,%d],%s,%d,%d,' % (
+					s, e, sfrom, to, path, fstart, flen)
+			#print 'file=', open(path).read()[fstart:fstart+flen]
 			sfrom = to + 1
+	err += 'sfrom=%d,re=%d' % (sfrom, re)
 	if sfrom == re + 1:
-		print 'ok'
-		return r
+		return 'ok', r, err
+	return 'fail', [], err
 
 def path_get_rs(url):
 	u = XCacheURL(url)
@@ -122,37 +126,53 @@ def path_get_rs(url):
 		return None
 	return marshal.load(open(path, 'rb'))
 
-def pass_url(path, qry):
-	to = 'http:/%s?%s' % (
-			path, qry.replace('yjwt08', 'yjwt09'))
-	logf.write('pass %s\n' % to)
-	return 'pass', to
 
 def jmp(path, qry, ran):
+	err = 'qry=%s;' % qry
 	try:
+		err += 'path_get_rs(%s):' % path
 		clen, m = path_get_rs(path)
+		err += 'calc_http_range(%s,%d):' % (ran, clen)
 		rs, re = calc_http_range(ran, clen)
+		err += ';calc_rs(len(m)=%d,rs=%d,re=%d):' % (
+					len(m), rs, re)
 		r = calc_rs(m, rs, re, clen)
-		if r:
-			logf.write('mine path=%s qry=%s ran=%s %s\n' % (
-						path, qry, ran, repr(r)))
-			return 'mine', r
+		err += '%s,%s' % (r[0], r[2])
+		if r[0] == 'ok':
+			logw('mine %s %s\n' % (path, err))
+			return 'mine', r[1]
 #	u = XCacheURL(s)
 	except:
+		traceback.print_exc()
 		pass
-	return pass_url(path, qry)
+	to = 'http:/%s?%s' % (path, qry.replace('yjwt08', 'yjwt09'))
+	logw('pass %s %s\n' % (to, err))
+	return 'pass', to
+
+	return pass_url(path, qry, err)
 
 def testjmp():
 	return 'pass', 'hahah', [
 			(1, 2, '/tmp/cc', 3),
 			(2, 3, '/mpt/dd', 3) ]
 	
+def logw(s):
+	logf.write(s)
+	logf.flush()
+
 logf = open('/l/cgi2', 'a+')
+logw('starts\n')
 
 #	return 'mine', '/var/xxx'
 
 if __name__ == '__main__':
-	print pass_url('/www.youku.com/hahaha', 'fuckyou&y=yjwt09')
+	if sys.argv[1] == 'testjmp':
+		u = XCacheURL(sys.argv[2])
+		ran = sys.argv[3]
+		print 'path', u.u.path, 'query', u.u.query, 'ran', ran
+		print jmp(u.u.path, u.u.query, ran)
+		sys.exit(0)
+	#print pass_url('/www.youku.com/hahaha', 'fuckyou&y=yjwt09')
 	print calc_http_range('3-5', 12)
 	print calc_http_range('-3', 12)
 	print calc_http_range('3-', 12)

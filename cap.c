@@ -26,6 +26,7 @@ typedef struct {
 	double t;
 	FILE *f;
 	int fd;
+	int r206;
 	char p[256];
 	char get[1600];
 	int totio, io, ack, reqlen;
@@ -78,20 +79,21 @@ static unsigned int hash(int a, int b, int c, int d) {
 
 static char *mymktemp(char *p) { return mktemp(p); }
 
-static void fin_conn(conn_t *c, char *s)
+static void fin_conn(conn_t *c, char *s, char C)
 {
 	file_close(c);
-	if (c->totio < 1000*1024) {
+	if (c->totio < 1000*1024 && !c->r206) {
 		f_delsmall++;
 		unlink(c->p);
 	} else {
 		f_got++;
 		char tmp[128];
 		strcpy(tmp, c->p);
-		tmp[3] = 'C';
+		tmp[3] = C;
 		rename(c->p, tmp);
 	}
-	fprintf(logf, "fin %s %d\n", s, c->totio);
+	fprintf(logf, "fin %s %d %s\n",
+		 	s, c->totio, c->r206 ? " r206" : "");
 	memset(c, 0, sizeof(*c));
 	nrconn--;
 }
@@ -106,7 +108,7 @@ static void timer(void)
 		if (c->io)
 			active++;
 		if (!c->io)
-			fin_conn(c, "zero-io");
+			fin_conn(c, "zero-io", 'Z');
 		c->io = 0;
 		n++;
 	}
@@ -178,7 +180,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 	if (paylen > 3 && !strncmp(pay, "GET", 3)) {
 		if (c->h)
-			fin_conn(c, "re-get");
+			fin_conn(c, "re-get", 'G');
 		else {
 			fprintf(logf, "get %d\n", h);
 			c->h = h;
@@ -202,13 +204,16 @@ void xcache_process_packet(uint8_t *p, int plen)
 			file_open(c, c->p);
 			file_write(c, c->get, c->reqlen);
 		}
+		if (pos == 0 && paylen > 16 && !strncmp(pay+9, "206", 3)) {
+			c->r206++;
+		}
 		file_seek(c, pos + c->reqlen);
 		file_write(c, pay, paylen);
 	}
 
 	if (tcpf & 5) {
 		if (c->h)
-			fin_conn(c, "fin-rst");
+			fin_conn(c, "fin-rst", 'F');
 	}
 }
 
@@ -227,5 +232,6 @@ void xcache_init(void)
 	signal(SIGALRM, sigalarm);
 	alarm(TIMEOUT);
 	setbuf(stdout, NULL); 
+	fprintf(logf, "starts\n");
 }
 

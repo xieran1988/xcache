@@ -106,10 +106,10 @@ clear-and-restart-all:
 	make clear
 	make restart-all
 
-
 restart-all:
 	make stop-all
 	make install
+	make build-lighttpd
 	make start-all
 
 start-all:
@@ -131,16 +131,17 @@ cp: build-netsniff
 	@ln -sf /c /var/www/xcache-c
 	@ln -sf /d /var/www/xcache-d
 	@ln -sf /l /var/www/xcache-l
-	@ln -sf /root/xcache/ /var/www/xcache-dev
-	@cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	@rm -rf /usr/lib/xcache/*
-	@cp mod_h264_streaming.so /usr/lib/lighttpd
 	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
 	@cp -dp xcache-* /usr/bin/
+	make update-lighttpd
 
 clear:
-	@rm -rf /c/* /d/* /l/*
-	touch /l/L
+	@rm -rf /c/* /d/* 
+	> /l/L
+	> /l/cap
+	> /l/E
+	> /l/cgi2
 
 touch-log:
 	umask 000 && touch /l/cgi2
@@ -282,7 +283,7 @@ test-lighttpd:
 	#curl "http://localhost/dddd?302"
 	#wget -O - "http://localhost/dddd?302"
 	#curl "http://localhost/dddd?chunk"
-	curl -r 0-333 "http://localhost/dddd?py"
+	#curl -r 0-333 "http://localhost/dddd?py"
 	make tail-lighttpd-log
 
 tail-lighttpd-log:
@@ -315,21 +316,12 @@ test-pyjmp:
 	make test-combine
 	./util.py
 
-sha := 3da812f
-dir := /d
-init := echo 1234567 > 
-
 test-combine:
-	${init} ${dir}/CF.${sha}.2.10.1.3
-	${init} ${dir}/CF.${sha}.2.10.6.10
-	${init} ${dir}/CF.${sha}.2.10.3.6
-	${init} ${dir}/CF.${sha}.2.10.5.9
-	${init} ${dir}/CF.${sha}.2.10.2.3
-	${init} ${dir}/CF.${sha}.2.10.2.4
-	${init} ${dir}/CF.${sha}.2.10.1.5
-	./xcache-combine-one ${dir} ${sha}
+	./gen-combine-test 3da812f /d
+	./xcache-combine-one 3da812f /d
+	./marshal-dump.py /d/RSM.3da812f
 #	cat ${dir}/RS.${sha}
-	cat ${dir}/RM.${sha}
+#	cat ${dir}/RM.
 #	gcc range.c -D_TEST_ -o ${dir}/ran
 #	RS=${dir}/RS.${sha} crs=3 cre=5 clen=10 ${dir}/ran
 #	RS=${dir}/RS.${sha} crs=6 cre=7 clen=10 ${dir}/ran

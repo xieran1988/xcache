@@ -213,9 +213,11 @@ static int call_jmp(
 	PyObject *r1 = PyTuple_GetItem(r, 0);
 	PyObject *r2 = PyTuple_GetItem(r, 1);
 	char *s1 = PyString_AsString(r1);
+	log_error_write(srv, __FILE__, __LINE__, "ss", "jmp=", s1);
 	if (*s1 == 'm') {
 		int ls = PyList_Size(r2);
 		int i;
+		log_error_write(srv, __FILE__, __LINE__, "sd", "listsize=", ls);
 		con->file_finished = 1;
 		for (i = 0; i < ls; i++) {
 			PyObject *t = PyList_GetItem(r2, i);
@@ -225,8 +227,8 @@ static int call_jmp(
 			char *fpath = PyString_AsString(t1);
 			int start = PyInt_AsLong(t2);
 			int len = PyInt_AsLong(t3);
-			log_error_write(srv, __FILE__, __LINE__, "dsdd", 
-					i, fpath, start, len);
+			log_error_write(srv, __FILE__, __LINE__, "sdsdd", 
+						"flist", i, fpath, start, len);
 			buffer *b = buffer_init_string(fpath);
 			http_chunk_append_file(srv, con, b, start, len);
 			buffer_free(b);
@@ -249,8 +251,9 @@ URIHANDLER_FUNC(mod_range_path_handler) {
 	size_t k;
 
 	char *s = con->uri.query->ptr;
-	log_error_write(srv, __FILE__, __LINE__, "s", s);
-	log_error_write(srv, __FILE__, __LINE__, "s", con->request.http_range);
+	log_error_write(srv, __FILE__, __LINE__, "ss", "query=", s);
+	log_error_write(srv, __FILE__, __LINE__, "ss", "range=", 
+			con->request.http_range);
 	if (s && strstr(s, "yjwt")) {
 		return call_jmp(con, srv, 
 				con->uri.path->ptr, s, con->request.http_range);

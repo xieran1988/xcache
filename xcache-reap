@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 
+`echo starts >> /l/L`;
 while (1) {
-	open F, "find /c/ -name 'C.*' |";
+	open F, "find /c/ -name '[FGZ].*' |";
 	while (<F>) {
 		`do=1 xcache-reap-one $_`;
 		`rm -rf $_`;

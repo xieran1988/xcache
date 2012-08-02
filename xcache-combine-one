@@ -2,18 +2,19 @@
 
 import os, glob, sys, marshal
 
-rootdir = sys.argv[1]
-sha = sys.argv[2]
+sha = sys.argv[1]
+rootdir = sys.argv[2]
+
+clen = int(open('%s/I.%s' % (rootdir, sha)).read())
 
 arr = []
 for f in glob.glob('%s/CF.%s.*' % (rootdir, sha)):
 	basename = os.path.basename(f)
-	cf, sha, hl, clen, s, e = basename.split('.')
-	hl = int(hl)
-	clen = int(clen)
+	cf, sha, s, e = basename.split('.')
 	s = int(s)
 	e = int(e)
-	print f, basename, s, e
+	hl = int(open('%s/I.%s.%d.%d' % (rootdir, sha, s, e)).read())
+	print basename, s, e, hl
 	arr.append((s, e, f, hl))
 
 res = []
@@ -28,9 +29,10 @@ for i in arr:
 	if r == False:
 		res.append((s, e, f, hl))
 	else:
-		rm.append(f)
+		rm += [f, f.replace('CF', 'CH'), f.replace('CF', 'I')]
 
 res = sorted(res)
+
 #open('%s/RS.%s' % (rootdir, sha), 'w+').write(''.join(
 #	[' '.join(i)+'\n' for i in res]
 #))

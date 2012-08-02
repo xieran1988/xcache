@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <Python.h>
+
 /**
  * this is a staticfile for a lighttpd plugin
  *
@@ -33,17 +35,32 @@ typedef struct {
 	PLUGIN_DATA;
 
 	buffer *range_buf;
-
+	
 	plugin_config **config_storage;
 
 	plugin_config conf;
 } plugin_data;
+
+static void py_assert(void *p)
+{
+	if (!p) {
+		PyErr_Print();
+		exit(1);
+	}
+}
+
 
 /* init the plugin data */
 INIT_FUNC(mod_staticfile_init) {
 	plugin_data *p;
 
 	p = calloc(1, sizeof(*p));
+
+	Py_Initialize();
+	PyRun_SimpleString("import sys");
+	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
+	//py_mod = PyImport_ImportModule("cap");
+	//py_assert(py_mod);
 
 	p->range_buf = buffer_init();
 
@@ -152,7 +169,16 @@ static int mod_staticfile_patch_connection(server *srv, connection *con, plugin_
 #undef PATCH
 
 /* fucked by xb */
-static int my_rs, my_re, my_clen, my_hl;
+#if 0
+static int my_mode, my_rs, my_re, my_clen, my_hl;
+static char my_path[1024];
+static void grab_path(char *q, char *var)
+{
+	while (*var != '.') {
+		if (*var == ',')
+			*q = '';
+	}
+}
 static int parse_my_range(connection *con)
 {
 	char *s = con->uri.query->ptr;
@@ -161,8 +187,9 @@ static int parse_my_range(connection *con)
 		char *re = strstr(s, "re=");
 		char *clen = strstr(s, "clen=");
 		char *hl = strstr(s, "hl=");
+		char *path = strstr(s, "path=");
 		//log_error_write(srv, __FILE__, __LINE__, "s", s);
-		if (rs && re && clen && hl) {
+		if (rs && re && clen && hl && path) {
 			my_rs = atoi(rs + 3);
 			my_re = atoi(re + 3);
 			my_clen = atoi(clen + 5);
@@ -172,6 +199,7 @@ static int parse_my_range(connection *con)
 	}
 	return 0;
 }
+#endif 
 
 static int http_response_parse_range(server *srv, connection *con, plugin_data *p) {
 	int multipart = 0;
@@ -188,9 +216,11 @@ static int http_response_parse_range(server *srv, connection *con, plugin_data *
 	}
 
 	/* fucked by xb */
+#if 0
 	if (parse_my_range(con)) {
 		sce->st.st_size = my_clen;
 	}
+#endif
 	start = 0;
 	end = sce->st.st_size - 1;
 
@@ -300,6 +330,7 @@ static int http_response_parse_range(server *srv, connection *con, plugin_data *
 
 			/* RFC 2616 - 14.35.1 */
 			if (end > sce->st.st_size - 1) end = sce->st.st_size - 1;
+#endif
 
 			if (start > sce->st.st_size - 1) {
 				error = 1;
@@ -308,6 +339,7 @@ static int http_response_parse_range(server *srv, connection *con, plugin_data *
 			}
 		}
 
+#if 0
 		/* fucked by xb */
 		if (!error && parse_my_range(con)) {
 			if (start < my_rs || end > my_re) {
@@ -317,6 +349,7 @@ static int http_response_parse_range(server *srv, connection *con, plugin_data *
 //			start += my_hl;
 //			end += my_hl;
 		}
+#endif
 
 		if (!error) {
 			if (multipart) {
@@ -346,13 +379,15 @@ static int http_response_parse_range(server *srv, connection *con, plugin_data *
 
 			}
 
+#if 0
 			/* fucked by xb */
 			int real_start = start;
 			if (!error && parse_my_range(con)) {
 				real_start += my_hl;
 			}
+#endif
 			chunkqueue_append_file(con->write_queue, con->physical.path, 
-					real_start, end - start + 1);
+					start, end - start + 1);
 			con->response.content_length += end - start + 1;
 		}
 	}
@@ -573,6 +608,7 @@ URIHANDLER_FUNC(mod_staticfile_subrequest) {
 		}
 	}
 
+#if 0
 	/* fucked by xb */
 	if (parse_my_range(con)) {
 		if (my_rs == 0 && my_re == my_clen-1) {
@@ -586,6 +622,7 @@ URIHANDLER_FUNC(mod_staticfile_subrequest) {
 			return HANDLER_FINISHED;
 		}
 	}
+#endif
 
 	/* if we are still here, prepare body */
 

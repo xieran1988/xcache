@@ -19,9 +19,13 @@ def check(url, cr):
 		if 'youku' in url and 'start' in url:
 			err += '-youku-start'
 			raise
-		R = '/d/R.' + u.sha
+		R = '/d/RS.' + u.sha
 		err += '|open-file-%s' % R
 		rs = open(R, 'r').read()
+
+		return 'mine', 'http://%s/xcache-d/%s/%s?sha=%s.&y=yjwt08' % \
+				(u.u.hostname, R.replace('/', ','), u.basename, u.sha)
+
 		err += '|matchR'
 		r = re.match(r'(\d+)-(\d+)/(\d+) (\d+)', rs)
 		s, e, clen, start = r.groups()
@@ -29,6 +33,7 @@ def check(url, cr):
 		e = int(e)
 		clen = int(clen)
 		start = int(start)
+
 		return \
 				'mine', \
 				'http://%s/xcache-d/%s/%s?hl=%d&rs=%d&re=%d&clen=%d&y=yjwt08' % \

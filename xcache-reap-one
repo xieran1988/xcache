@@ -3,8 +3,14 @@
 $mb = 1024.*1024;
 
 open L, ">>/l/L";
-sub fuck { print L "@_[0]\n\n"; exit; }
-sub ll { print L "@_[0]\n"; }
+sub ll { 
+	if ($ENV{do}) { 
+		print L "@_[0]\n"; 
+	} else {
+		print "@_[0]\n"; 
+	}
+}
+sub fuck { ll "@_[0]\n"; exit; }
 
 $f = $ARGV[0];
 ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
@@ -25,7 +31,7 @@ fuck "EE: url empty" if !$url;
 
 chomp(($sha, $ext, $fname) = split /\s+/, `xcache-urlinfo "$url"`);
 ll "DD: url http://$host$url";
-ll "DD: ext $ext";
+#ll "DD: ext $ext";
 ll sprintf "DD: clen %.2lfM", $clen/$mb;
 fuck "EE: clen $clen invalid" if ($clen < 0.5*$mb || $clen > 1024*$mb);
 fuck "EE: size<clen size $size clen $clen" if ($size < $clen);
@@ -38,21 +44,27 @@ chomp($r = `xcache-urltest $url`);
 ll "DD: urltest $r";
 fuck "EE: urltest failed" if ($r !~ /^ok/);
 
-$R = "/d/R.$sha";
-$crange = sprintf "0-%d/%d", $clen-1, $clen if !$range;
-chomp($r = `xcache-rangetest-overwrite $R $crange`);
-ll "DD: crange $crange";
-ll "DD: rangetest $r";
-fuck "EE: rangetest failed" if ($r !~ /^ok/);
+ll "DD: crange_orig $crange";
+if (!$crange) {
+	$crange = sprintf "0-%d/%d", $clen-1, $clen;
+}
+($rs, $re) = $crange =~ /(\d+)-(\d+)\/(\d+)/;
+ll "DD: crange $crange rs $rs re $re";
 
+$R = "/d/R.$sha";
+#chomp($r = `xcache-rangetest-overwrite $R $crange`);
+#ll "DD: rangetest $r";
+#fuck "EE: rangetest failed" if ($r !~ /^ok/);
+
+$suf = "$sha.$start.$clen.$rs.$re";
 $t = time;
-ll "DD: Done: $clen $sha $ext $url $t";
+ll "DD: Done: $t $clen $sha $ext $url $suf";
 
 if ($ENV{do}) {
-	`mv $f /d/CF.$sha`;
-	`head -c $start $f > /d/CH.$sha`;
-	`echo $crange $start > $R`;
-	`mkdir -p /d/$sha`; `ln -sf /d/CF.$sha /d/$sha/$fname`;
+	`head -c $start $f > /d/CH.$suf`;
+	`mv $f /d/CF.$suf`;
+	`mkdir -p /d/$sha`; `ln -sf /d/CF.$suf /d/$sha/$fname`;
+	`xcache-combine-one /d $sha`;
 }
 
 ll;

@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <Python.h>
+
 /* plugin config for all request/connections */
 
 typedef struct {
@@ -28,6 +30,17 @@ typedef struct {
 	plugin_config conf;
 } plugin_data;
 
+
+static void py_assert(void *p)
+{
+	if (!p) {
+		PyErr_Print();
+		exit(1);
+	}
+}
+
+static PyObject *py_mod, *py_jmp;
+
 /* init the plugin data */
 INIT_FUNC(mod_range_init) {
 	plugin_data *p;
@@ -36,6 +49,15 @@ INIT_FUNC(mod_range_init) {
 
 	p->query_str = buffer_init();
 	p->get_params = array_init();
+
+	Py_Initialize();
+	PyRun_SimpleString("import sys");
+	PyRun_SimpleString("sys.path.append('/usr/lib/xcache')");
+
+	py_mod = PyImport_ImportModule("util");
+	py_assert(py_mod);
+	py_jmp = PyObject_GetAttrString(py_mod, "jmp");
+	py_assert(py_jmp);
 
 	return p;
 }
@@ -182,13 +204,108 @@ static int split_get_params(array *get_params, buffer *qrystr) {
 	return 0;
 }
 
+static int call_jmp(
+		connection *con, server *srv, 
+		char *path, char *qry, char *ran)
+{
+	PyObject *r = PyObject_CallFunction(py_jmp, "sss", path, qry, ran);
+	//log_error_write(srv, __FILE__, __LINE__, "d", r);
+	PyObject *r1 = PyTuple_GetItem(r, 0);
+	PyObject *r2 = PyTuple_GetItem(r, 1);
+	char *s1 = PyString_AsString(r1);
+	if (*s1 == 'm') {
+		int ls = PyList_Size(r2);
+		int i;
+		con->file_finished = 1;
+		for (i = 0; i < ls; i++) {
+			PyObject *t = PyList_GetItem(r2, i);
+			PyObject *t1 = PyTuple_GetItem(t, 0);
+			PyObject *t2 = PyTuple_GetItem(t, 1);
+			PyObject *t3 = PyTuple_GetItem(t, 2);
+			char *fpath = PyString_AsString(t1);
+			int start = PyInt_AsLong(t2);
+			int len = PyInt_AsLong(t3);
+			log_error_write(srv, __FILE__, __LINE__, "dsdd", 
+					i, fpath, start, len);
+			buffer *b = buffer_init_string(fpath);
+			http_chunk_append_file(srv, con, b, start, len);
+			buffer_free(b);
+		}
+		return HANDLER_FINISHED;
+	} else {
+		char *s2 = PyString_AsString(r2);
+		con->http_status = 302;
+		response_header_insert(srv, con, 
+				CONST_STR_LEN("Location"), 
+				s2, strlen(s2));
+		log_error_write(srv, __FILE__, __LINE__, "ss", "302->", s2);
+		return HANDLER_FINISHED;
+	}
+}
+
 URIHANDLER_FUNC(mod_range_path_handler) {
 	plugin_data *p = p_d;
 	int s_len;
 	size_t k;
 
 	char *s = con->uri.query->ptr;
-	if (s) {
+	log_error_write(srv, __FILE__, __LINE__, "s", s);
+	log_error_write(srv, __FILE__, __LINE__, "s", con->request.http_range);
+	if (s && strstr(s, "yjwt")) {
+		return call_jmp(con, srv, 
+				con->uri.path->ptr, s, con->request.http_range);
+		/*
+		char *ss = strstr(s, "302");
+		if (ss) {
+			con->http_status = 302;
+			response_header_insert(srv, con, CONST_STR_LEN("Location"), 
+					CONST_STR_LEN("http://g.cn"));
+			return HANDLER_FINISHED;
+		}
+		ss = strstr(s, "chunk");
+		if (ss) {
+			con->file_finished = 1;
+			buffer *b = buffer_init_string("/tmp/ha");
+			http_chunk_append_file(srv, con, b, 0, 3);
+			buffer_free(b);
+			b = buffer_init_string("/tmp/hb");
+			http_chunk_append_file(srv, con, b, 0, 3);
+			buffer_free(b);
+			return HANDLER_FINISHED;
+		}
+		ss = strstr(s, "py");
+		if (ss) {
+			con->http_status = 302;
+			//log_error_write(srv, __FILE__, __LINE__, "d", py_jmp);
+			PyObject *r = PyObject_CallFunction(py_jmp, "k", 1);
+			//log_error_write(srv, __FILE__, __LINE__, "d", r);
+			PyObject *r1 = PyTuple_GetItem(r, 0);
+			PyObject *r2 = PyTuple_GetItem(r, 1);
+			PyObject *r3 = PyTuple_GetItem(r, 2);
+			char *s1 = PyString_AsString(r1);
+			char *s2 = PyString_AsString(r2);
+			int ls = PyList_Size(r3);
+			int i;
+			for (i = 0; i < ls; i++) {
+				PyObject *t = PyList_GetItem(r3, i);
+				PyObject *t1 = PyTuple_GetItem(t, 0);
+				PyObject *t2 = PyTuple_GetItem(t, 1);
+				PyObject *t3 = PyTuple_GetItem(t, 2);
+				PyObject *t4 = PyTuple_GetItem(t, 3);
+				int start = PyInt_AsLong(t1);
+				int end = PyInt_AsLong(t2);
+				char *path = PyString_AsString(t3);
+				int hl = PyInt_AsLong(t4);
+				log_error_write(srv, __FILE__, __LINE__, "dsddd", 
+						i, path, start, end, hl);
+			}
+			//log_error_write(srv, __FILE__, __LINE__, "ss", s1, s2);
+			return HANDLER_FINISHED;
+		}
+		*/
+	}
+
+	if (0) {
 		char *ss = strstr(s, "rs=");
 		char *es = strstr(s, "rl=");
 		//log_error_write(srv, __FILE__, __LINE__, "s", s);

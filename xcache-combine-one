@@ -1,0 +1,44 @@
+#!/usr/bin/python
+
+import os, glob, sys, marshal
+
+rootdir = sys.argv[1]
+sha = sys.argv[2]
+
+arr = []
+for f in glob.glob('%s/CF.%s.*' % (rootdir, sha)):
+	basename = os.path.basename(f)
+	cf, sha, hl, clen, s, e = basename.split('.')
+	hl = int(hl)
+	clen = int(clen)
+	s = int(s)
+	e = int(e)
+	print f, basename, s, e
+	arr.append((s, e, f, hl))
+
+res = []
+rm = []
+for i in arr:
+	s, e, f, hl = i
+	r = False
+	for j in arr:
+		s2, e2, f2, hl2 = j
+		if s2 <= s and e <= e2 and i != j:
+			r = True
+	if r == False:
+		res.append((s, e, f, hl))
+	else:
+		rm.append(f)
+
+res = sorted(res)
+#open('%s/RS.%s' % (rootdir, sha), 'w+').write(''.join(
+#	[' '.join(i)+'\n' for i in res]
+#))
+marshal.dump((clen, res), open('%s/RSM.%s' % (rootdir, sha), 'wb+'))
+open('%s/RM.%s' % (rootdir, sha), 'w+').write(''.join(
+	[i+'\n' for i in rm]
+))
+#print sorted(res)
+#print rm
+
+

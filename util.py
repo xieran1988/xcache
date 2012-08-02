@@ -86,11 +86,84 @@ class XCacheURL():
 		except:
 			self.start = 0.0
 
+def calc_http_range(ran, clen):
+	if not re.match(r'^(\d+)?-(\d+)?$', ran):
+		return 
+	s, e = ran.split('-')
+	if len(s) > 0 and len(e) > 0:
+		return int(s), int(e)
+	elif len(s) > 0 and len(e) == 0:
+		return int(s), clen-1
+	elif len(s) == 0 and len(e) > 0:
+		return 0, int(e)
+
+def calc_rs(rlist, rs, re, clen):
+	print '[%d,%d]'%(rs,re), clen
+	sfrom = rs
+	r = []
+	for t in rlist:
+		s, e, path, hl = t
+		if s <= sfrom and sfrom <= e and sfrom <= re:
+			to = min(e, re)
+			fstart = sfrom - s + hl
+			flen = to - sfrom + 1
+			print '[%d,%d]'%(s,e), 'write', '[%d,%d]'%(sfrom,to)
+			r.append((path, fstart, flen))
+			print 'file=', open(path).read()[fstart:fstart+flen]
+			sfrom = to + 1
+	if sfrom == re + 1:
+		print 'ok'
+		return r
+
+def path_get_rs(url):
+	u = XCacheURL(url)
+	path = '/d/RSM.%s' % u.sha
+	if not os.path.exists(path):
+		return None
+	return marshal.load(open(path, 'rb'))
+
+def pass_url(path, qry):
+	to = 'http:/%s?%s' % (
+			path, qry.replace('yjwt08', 'yjwt09'))
+	logf.write('pass %s\n' % to)
+	return 'pass', to
+
+def jmp(path, qry, ran):
+	try:
+		clen, m = path_get_rs(path)
+		rs, re = calc_http_range(ran, clen)
+		r = calc_rs(m, rs, re, clen)
+		if r:
+			logf.write('mine path=%s qry=%s ran=%s %s\n' % (
+						path, qry, ran, repr(r)))
+			return 'mine', r
+#	u = XCacheURL(s)
+	except:
+		pass
+	return pass_url(path, qry)
+
+def testjmp():
+	return 'pass', 'hahah', [
+			(1, 2, '/tmp/cc', 3),
+			(2, 3, '/mpt/dd', 3) ]
+	
+logf = open('/l/cgi2', 'a+')
+
+#	return 'mine', '/var/xxx'
+
 if __name__ == '__main__':
-	u = XCacheURL("/youku/dddddd/aaaa.flv?start=123dd")
-	print u.start
-	d = XCacheDB('/tmp/cc', unpick=['k'])
-	d.k = 'd'
-	d.dump()
-	print d
+	print pass_url('/www.youku.com/hahaha', 'fuckyou&y=yjwt09')
+	print calc_http_range('3-5', 12)
+	print calc_http_range('-3', 12)
+	print calc_http_range('3-', 12)
+	print 'test calc_rs'
+	clen, m = marshal.load(open('/d/RSM.3da812f', 'rb'))
+	print calc_rs(m, 3, 5, clen)
+	print calc_rs(m, 6, 7, clen)
+	print calc_rs(m, 1, 9, clen)
+	print calc_rs(m, 6, 10, clen)
+	print 'test jmp'
+	print jmp('/www.youku.com/aaa.mp4', 'y=yjwt08', '1-9')
+	print jmp('/www.youku.com/aaa.mp4', 'y=yjwt08', '0-9')
+	#print jmp(sys.argv[1])
 

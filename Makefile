@@ -261,10 +261,39 @@ ctest:
 	gcc /root/t.c -o /tmp/c
 	/tmp/c
 
+test-reap:
+	make install
+	cp sample-cap /tmp/kk
+	do=1 xcache-reap-one /tmp/kk
+
+test-mod-range:
+	make update-restart-lighttpd
+	make test-pyjmp
+	curl -r 1-9 "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
+	wget -O - "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
+#	wget -O - "http://localhost/dddd?302"
+
+test-lighttpd:
+	make update-restart-lighttpd
+	echo 12346678 > /var/www/xcache-testfile
+	echo 123 > /tmp/ha
+	echo 789 > /tmp/hb
+	#curl "http://localhost/xcache-testfile?fufkcyousadf&ahha"
+	#curl "http://localhost/dddd?302"
+	#wget -O - "http://localhost/dddd?302"
+	#curl "http://localhost/dddd?chunk"
+	curl -r 0-333 "http://localhost/dddd?py"
+	make tail-lighttpd-log
+
+tail-lighttpd-log:
+	tail /var/log/lighttpd/error.log
+
+
 update-lighttpd:
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
 	cp -dp xcache-jmp.pl /var/www/
 	cp -dp xcache-fastjmp.py /usr/bin
+	cp -dp util.py /usr/lib/xcache
 	ln -sf /root/xcache /var/www/xcache-dev
 
 update-restart-lighttpd:
@@ -281,6 +310,32 @@ update-xcache:
 test-fastjmp:
 	make install && wget --header="Range: bytes=1-100" -O /tmp/o http://localhost/xcache-fastjmp/
 	cat /tmp/o
+
+test-pyjmp:
+	make test-combine
+	./util.py
+
+sha := 3da812f
+dir := /d
+init := echo 1234567 > 
+
+test-combine:
+	${init} ${dir}/CF.${sha}.2.10.1.3
+	${init} ${dir}/CF.${sha}.2.10.6.10
+	${init} ${dir}/CF.${sha}.2.10.3.6
+	${init} ${dir}/CF.${sha}.2.10.5.9
+	${init} ${dir}/CF.${sha}.2.10.2.3
+	${init} ${dir}/CF.${sha}.2.10.2.4
+	${init} ${dir}/CF.${sha}.2.10.1.5
+	./xcache-combine-one ${dir} ${sha}
+#	cat ${dir}/RS.${sha}
+	cat ${dir}/RM.${sha}
+#	gcc range.c -D_TEST_ -o ${dir}/ran
+#	RS=${dir}/RS.${sha} crs=3 cre=5 clen=10 ${dir}/ran
+#	RS=${dir}/RS.${sha} crs=6 cre=7 clen=10 ${dir}/ran
+#	RS=${dir}/RS.${sha} crs=1 cre=9 clen=10 ${dir}/ran
+#	RS=${dir}/RS.${sha} crs=6 cre=10 clen=10 ${dir}/ran
+#	rm -rf /tmp/CF.*
 
 test-fastjmp-py:
 	echo "0-8/9" > /d/R.3da812f

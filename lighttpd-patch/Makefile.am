@@ -147,7 +147,8 @@ mod_scgi_la_LIBADD = $(common_libadd)
 
 lib_LTLIBRARIES += mod_staticfile.la
 mod_staticfile_la_SOURCES = mod_staticfile.c
-mod_staticfile_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
+mod_staticfile_la_CFLAGS = -I/usr/include/python2.7
+mod_staticfile_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined -lpython2.7 
 mod_staticfile_la_LIBADD = $(common_libadd)
 
 lib_LTLIBRARIES += mod_dirlisting.la
@@ -167,7 +168,8 @@ mod_setenv_la_LIBADD = $(common_libadd)
 
 lib_LTLIBRARIES += mod_range.la
 mod_range_la_SOURCES = mod_range.c
-mod_range_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined
+mod_range_la_CFLAGS = -I/usr/include/python2.7
+mod_range_la_LDFLAGS = -module -export-dynamic -avoid-version -no-undefined -lpython2.7
 mod_range_la_LIBADD = $(common_libadd)
 
 lib_LTLIBRARIES += mod_alias.la

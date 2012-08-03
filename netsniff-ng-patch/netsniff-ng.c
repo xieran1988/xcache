@@ -857,6 +857,37 @@ static int begin_single_pcap_file(struct mode *mode)
 	return fd;
 }
 
+static int g_skipped, g_sock;
+
+void get_socket_stat(int *skipped, int *drops);
+void get_socket_stat(int *skipped, int *drops)
+{
+	struct tpacket_stats kstats;
+				socklen_t slen = sizeof(kstats);
+				fmemset(&kstats, 0, sizeof(kstats));
+				getsockopt(g_sock, SOL_PACKET, PACKET_STATISTICS,
+						&kstats, &slen);
+	*skipped = g_skipped;
+	*drops = kstats.tp_drops;
+				/*
+				fd = next_multi_pcap_file(mode, fd);
+				next_dump = false;
+				if (mode->print_mode == FNTTYPE_PRINT_NONE) {
+					printf(".(+%lu/-%lu)",
+					       1UL * kstats.tp_packets -
+					       kstats.tp_drops -
+					       skipped, 1UL * kstats.tp_drops +
+					       skipped);
+					fflush(stdout);
+				}
+				*/
+}
+
+// fucked
+void xinit(void);
+int xproc(void *, int);
+void xexit(void);
+
 static void enter_mode_rx_only_or_dump(struct mode *mode)
 {
 	int sock, irq, ifindex, fd = 0, ret;
@@ -946,10 +977,7 @@ try_file:
 
 	gettimeofday(&start, NULL);
 
-	extern void xinit();
-	extern int xproc(void *, int);
-	extern void xexit();
-
+	// fucked
 	xinit();
 
 	while (likely(sigint == 0)) {
@@ -958,6 +986,9 @@ try_file:
 			packet = ((uint8_t *) hdr) + hdr->tp_h.tp_mac;
 			fcnt++;
 
+			// fucked
+			g_skipped = skipped;
+			g_sock = sock;
 			if (xproc(packet, hdr->tp_h.tp_len))
 				sigint = 1;
 

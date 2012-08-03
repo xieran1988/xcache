@@ -204,7 +204,7 @@ static int split_get_params(array *get_params, buffer *qrystr) {
 	return 0;
 }
 
-static int call_jmp(
+static int call_jmp2(
 		connection *con, server *srv, 
 		char *path, char *qry, char *ran)
 {
@@ -252,6 +252,46 @@ static int call_jmp(
 		return HANDLER_FINISHED;
 	}
 }
+
+static int call_jmp(
+		connection *con, server *srv, 
+		char *path, char *qry, char *ran)
+{
+	PyObject *r = PyObject_CallFunction(py_jmp, "sss", path, qry, ran);
+	PyObject *r1 = PyTuple_GetItem(r, 0);
+	PyObject *r2 = PyTuple_GetItem(r, 1);
+	PyObject *r3 = PyTuple_GetItem(r, 2);
+	char *s1 = PyString_AsString(r1);
+	log_error_write(srv, __FILE__, __LINE__, "ss", "jmp=", s1);
+	if (*s1 == 'm') {
+		con->file_finished = 1;
+		if (ran) {
+			char *cran = PyString_AsString(r3);
+			con->http_status = 206;
+			response_header_insert(srv, con, 
+					CONST_STR_LEN("Content-Range"), 
+					cran, strlen(cran));
+		}
+		char *fpath = PyString_AsString(PyTuple_GetItem(r2, 0));
+		int start = PyInt_AsLong(PyTuple_GetItem(r2, 1));
+		int len = PyInt_AsLong(PyTuple_GetItem(r2, 2));
+		log_error_write(srv, __FILE__, __LINE__, "ssdd", 
+					"dumpfile", fpath, start, len);
+		buffer *b = buffer_init_string(fpath);
+		http_chunk_append_file(srv, con, b, start, len);
+		buffer_free(b);
+	} else {
+		char *s2 = PyString_AsString(r2);
+		con->http_status = 302;
+		response_header_insert(srv, con, 
+				CONST_STR_LEN("Location"), 
+				s2, strlen(s2));
+		log_error_write(srv, __FILE__, __LINE__, "ss", "302->", s2);
+	}
+	Py_XDECREF(r);
+	return HANDLER_FINISHED;
+}
+
 
 URIHANDLER_FUNC(mod_range_path_handler) {
 	plugin_data *p = p_d;

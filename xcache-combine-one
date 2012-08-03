@@ -1,46 +1,55 @@
 #!/usr/bin/python
 
-import os, glob, sys, marshal
+import os, glob, sys, marshal, shutil
 
 sha = sys.argv[1]
 rootdir = sys.argv[2]
+cappath = sys.argv[3]
+hl = int(sys.argv[4])
+clen = int(sys.argv[5])
+rs = int(sys.argv[6])
+re = int(sys.argv[7])
 
-clen = int(open('%s/I.%s' % (rootdir, sha)).read())
+print sha, rootdir, cappath, 'hl', hl, 'clen', clen, 'rs', rs, 're', re
 
-arr = []
-for f in glob.glob('%s/CF.%s.*' % (rootdir, sha)):
-	basename = os.path.basename(f)
-	cf, sha, s, e = basename.split('.')
-	s = int(s)
-	e = int(e)
-	hl = int(open('%s/I.%s.%d.%d' % (rootdir, sha, s, e)).read())
-	print basename, s, e, hl
-	arr.append((s, e, f, hl))
+covpath = '%s/R.%s' % (rootdir, sha)
+if not os.path.exists(covpath):
+	cov = []
+else:
+	print 'reading %s' % covpath
+	cov = marshal.load(open(covpath, 'rb'))['cov']
 
-res = []
-rm = []
-for i in arr:
-	s, e, f, hl = i
-	r = False
-	for j in arr:
-		s2, e2, f2, hl2 = j
-		if s2 <= s and e <= e2 and i != j:
-			r = True
-	if r == False:
-		res.append((s, e, f, hl))
-	else:
-		rm += [f, f.replace('CF', 'CH'), f.replace('CF', 'I')]
+if filter(lambda x: x[0] <= rs and re <= x[1], cov):
+	print 'fail: already covered'
+	print
+	sys.exit(0)
 
-res = sorted(res)
+cov = filter(lambda x: not (rs <= x[0] and x[1] <= re), cov)
+cov.append((rs, re))
 
-#open('%s/RS.%s' % (rootdir, sha), 'w+').write(''.join(
-#	[' '.join(i)+'\n' for i in res]
-#))
-marshal.dump((clen, res), open('%s/RSM.%s' % (rootdir, sha), 'wb+'))
-open('%s/RM.%s' % (rootdir, sha), 'w+').write(''.join(
-	[i+'\n' for i in rm]
-))
-#print sorted(res)
-#print rm
+m = sorted(cov)
+newcov = []
+print 'covers'
+tot = 0
+i = 0
+while i < len(m):
+	s, e = m[i][:2]
+	j = i+1
+	while j < len(m) and m[j][0] <= e+1 and e+1 <= m[j][1]:
+		e = m[j][1]
+		j += 1
+	i = j
+	tot += e - s + 1
+	print s, e
+	newcov.append((s, e))
+print 'tot', tot, 'left', clen - tot
 
+resfp = open('%s/F.%s' % (rootdir, sha), 'r+b')
+fp = open(cappath, 'rb')
+fp.seek(hl)
+resfp.seek(rs)
+shutil.copyfileobj(fp, resfp, re-rs+1)
+
+marshal.dump({'clen':clen, 'cov':newcov}, open(covpath, 'wb+'))
+print 'ok'
 

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+find /d -type l | xargs md5sum

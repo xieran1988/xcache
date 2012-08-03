@@ -14,7 +14,7 @@
 #include <arpa/inet.h>
 #include <sys/fcntl.h>
 
-#define TIMEOUT 3
+#define TIMEOUT 1
 
 void xcache_process_packet(uint8_t *p, int plen);
 void xcache_init(void);
@@ -30,6 +30,7 @@ typedef struct {
 	char p[256];
 	char get[1600];
 	int totio, io, ack, reqlen;
+	int ziotm;
 	unsigned int h;
 	int rsp;
 	char s;
@@ -79,10 +80,13 @@ static unsigned int hash(int a, int b, int c, int d) {
 
 static char *mymktemp(char *p) { return mktemp(p); }
 
+static int opt_notdelsmall = 0;
+static int opt_ziotimeout = -1;
+
 static void fin_conn(conn_t *c, char *s, char C)
 {
 	file_close(c);
-	if (c->totio < 1000*1024 && !c->r206) {
+	if (!opt_notdelsmall && c->totio < 1000*1024 && !c->r206) {
 		f_delsmall++;
 		unlink(c->p);
 	} else {
@@ -92,11 +96,13 @@ static void fin_conn(conn_t *c, char *s, char C)
 		tmp[3] = C;
 		rename(c->p, tmp);
 	}
-	fprintf(logf, "fin %s %d %s\n",
-		 	s, c->totio, c->r206 ? " r206" : "");
+	fprintf(logf, "fin %s %u %d %s\n",
+		 	s, c->h, c->totio, c->r206 ? " r206" : "");
 	memset(c, 0, sizeof(*c));
 	nrconn--;
 }
+
+void get_socket_stat(int *, int *);
 
 static void timer(void)
 {
@@ -107,23 +113,54 @@ static void timer(void)
 			continue;
 		if (c->io)
 			active++;
-		if (!c->io)
+		if (!c->io) 
+			c->ziotm++;
+		if (opt_ziotimeout > 0 && c->ziotm >= opt_ziotimeout)
 			fin_conn(c, "zero-io", 'Z');
 		c->io = 0;
 		n++;
 	}
+	int skipped, drops;
+	get_socket_stat(&skipped, &drops);
+
 	double mb = 1024*1024;
 	fprintf(getenv("logstdout") ? stdout : logf, 
 					"info %d %d %d %d %d %d "
-					"active %d ht %d totio %.2fM max %d nrrsp %d\n",
+					"A %d H %d io %.2fM max %d rsp %d drop %d/%d\n",
 				 	totio, maxconn, active, f_delsmall, f_got, (int)time(0),
-					active, n, totio/mb, maxconn, nrrsp
+					active, n, totio/mb, maxconn, nrrsp, skipped, drops
 					);
 	nrrsp = maxconn = 0;
 	f_delsmall = f_got = totio = 0;
 }
 
-static int t_pcnt;
+static int fuck_detect(uint8_t *p)
+{
+	static int pcnt, shitcnt, fuckcnt;
+	static int fuck_nr = 100;
+	uint16_t a = *(uint16_t*)(p+4);
+	uint16_t b = *(uint16_t*)(p+10);
+
+	pcnt++;
+	//fprintf(logf, "a=%.2x b=%.2x s=%d f=%d\n", a, b, shitcnt, fuckcnt);
+
+	if (a == 0x7469 && b == 0x6873) {
+		shitcnt++;
+		//fprintf(logf, "shit\n");
+	} else if (a == 0x6b63 && b == 0x7566) {
+		fuckcnt++;
+	} else {
+	}
+	if (fuckcnt >= 1) {
+		if (shitcnt != fuck_nr - 1)
+			fprintf(logf, 
+					"fucked pcnt %d shit %d fuck %d\n", 
+					pcnt, shitcnt, fuckcnt
+					);
+		shitcnt = fuckcnt = 0;
+	}
+	return 0;
+}
 
 void xcache_process_packet(uint8_t *p, int plen)
 {
@@ -133,7 +170,8 @@ void xcache_process_packet(uint8_t *p, int plen)
 	uint32_t dip, sip,  seq, ack;
 	uint16_t dport, sport;
 
-	t_pcnt++;
+	fuck_detect(p);
+
 	if (alrm) {
 		timer();
 		alrm = 0;
@@ -181,7 +219,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 	if (paylen > 3 && !strncmp(pay, "GET", 3)) {
 		if (c->h)
 			fin_conn(c, "re-get", 'G');
-		fprintf(logf, "get %d\n", h);
+		fprintf(logf, "get %u\n", h);
 		c->h = h;
 		c->ack = (int)ack;
 		strcpy(c->p, "/c/A.XXXXXX");
@@ -219,17 +257,25 @@ static void sigalarm(int _D)
 {
 	alrm++;
 	alarm(TIMEOUT);
-	t_pcnt = 0;
 }
 
 void xcache_init(void)
 {
 //	INIT_LIST_HEAD(&conns_active);
+//	if (getenv("notdelsmall"))
+	opt_notdelsmall = 1;
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
 	signal(SIGALRM, sigalarm);
 	alarm(TIMEOUT);
 	setbuf(stdout, NULL); 
-	fprintf(logf, "starts\n");
+	fprintf(logf, 
+			"\n"
+			"====== starts ======\n" 
+			"%s zio-timeout %d\n"
+			"\n",
+			opt_notdelsmall ? "notdelsmall" : "",
+			opt_ziotimeout
+			);
 }
 

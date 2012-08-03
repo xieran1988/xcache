@@ -1,0 +1,23 @@
+#!/usr/bin/perl
+
+($sha) = `ls /d/R.*` =~ /R.(.*)/;
+print "=== $sha\n";
+print `./dump-rsm.py /d/R.$sha`;
+print "=== gets\n";
+print `cat /l/cap | grep ^get`;
+print `cat /l/cap | grep ^get | wc -l`;
+open F, "cat /l/cap | grep ^get|";
+while (<F>) {
+
+}
+
+print "=== fins\n";
+print `cat /l/cap | grep ^fin`;
+print `cat /l/cap | grep ^fin | wc -l`;
+print `cat /l/cap | grep ^fin | awk '{ c = c + \$4 } ; END { print c }'`;
+open F, "cat /l/cap | grep ^fin|";
+while (<F>) {
+
+}
+
+

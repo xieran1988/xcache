@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 
-`echo starts >> /l/L`;
+`echo >> /l/L`;
+`echo ====== starts ======= >> /l/L`;
+`echo >> /l/L`;
 while (1) {
 	open F, "find /c/ -name '[FGZ].*' |";
 	while (<F>) {

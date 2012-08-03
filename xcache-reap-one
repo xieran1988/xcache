@@ -27,13 +27,16 @@ $s = `head -c 4096 $f`;
 ($clen) = $s =~ /Content-Length: (\d+)/;
 ($crange) = $s =~ /Content-Range: bytes (\S+)/;
 ($host) = $s =~ /Host: (\S+)/;
+($http) = $s =~ /HTTP/;
 fuck "EE: url empty" if !$url;
+fuck "EE: no HTTP" if !$http;
 
 chomp(($sha, $ext, $fname) = split /\s+/, `xcache-urlinfo "$url"`);
 ll "DD: url http://$host$url";
 ll "DD: crange_orig $crange";
 #ll "DD: ext $ext";
 ll sprintf "DD: clen %.2lfM", $clen/$mb;
+fuck "EE: clen==0" if ($clen == 0);
 #fuck "EE: clen $clen invalid" if ($clen < 0.5*$mb || $clen > 1024*$mb);
 #fuck "EE: size<clen size $size clen $clen" if ($size < $clen);
 
@@ -58,18 +61,16 @@ $R = "/d/R.$sha";
 #ll "DD: rangetest $r";
 #fuck "EE: rangetest failed" if ($r !~ /^ok/);
 
-$suf = "$sha.$rs.$re";
 $t = time;
 ll "DD: Done: $t $clen $sha $ext $url $suf";
 
 if ($ENV{do}) {
-	`head -c $start $f > /d/CH.$suf`;
-	`echo $rclen > /d/I.$sha`;
-	`echo $start > /d/I.$suf`;
-	`mv $f /d/CF.$suf`;
-	`mkdir -p /d/$sha`; `ln -sf /d/CF.$suf /d/$sha/$fname`;
-	`xcache-combine-one $sha /d`;
-	`cat /d/RM.$sha | xargs rm -rf`;
+	`mkdir -p /d/$sha`; `ln -sf /d/F.$sha /d/$sha/$fname`;
+	`echo ----- $rs-$re/$rclen $f hl=$start >> /d/L.$sha`;
+	`head -c $start $f >> /d/L.$sha`;
+	`touch /d/F.$sha`;
+	`xcache-combine-one $sha /d $f $start $rclen $rs $re >> /d/L.$sha`;
 }
 
 ll;
+

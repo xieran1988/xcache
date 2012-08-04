@@ -54,11 +54,8 @@ weblog:
 	./xcache-taillog | node data.js
 
 init:
-	@rm -rf /var/lib/xcache*
 	@mkdir -p /usr/lib/xcache
-	@mkdir -p /var/lib/xcache
-	@mkdir -p /var/lib/xcache-log
-	@update-rc.d xcache defaults
+	#@update-rc.d xcache defaults
 
 build-netsniff:
 	cd netsniff-ng/src/build && make
@@ -208,6 +205,12 @@ update-xcache:
 
 test-wget-mgr:
 	wget -O /tmp/wget "http://localhost/QQPCMgr_Setup_Basic_68_2393.exe?yjwt"
+
+test-wget-minggame:
+	wget -O /tmp/wget "http://localhost/MingGame.swf?yjwt"
+
+test-wget-qq:
+	wget -O /tmp/wget "http://localhost/QQBrowserSetup.exe?yjwt"
 
 test-pyjmp:
 	make test-combine

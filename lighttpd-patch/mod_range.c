@@ -204,55 +204,6 @@ static int split_get_params(array *get_params, buffer *qrystr) {
 	return 0;
 }
 
-static int call_jmp2(
-		connection *con, server *srv, 
-		char *path, char *qry, char *ran)
-{
-	PyObject *r = PyObject_CallFunction(py_jmp, "sss", path, qry, ran);
-	//log_error_write(srv, __FILE__, __LINE__, "d", r);
-	PyObject *r1 = PyTuple_GetItem(r, 0);
-	PyObject *r2 = PyTuple_GetItem(r, 1);
-	PyObject *r3 = PyTuple_GetItem(r, 2);
-	char *s1 = PyString_AsString(r1);
-	log_error_write(srv, __FILE__, __LINE__, "ss", "jmp=", s1);
-	if (*s1 == 'm') {
-		int ls = PyList_Size(r2);
-		int i;
-		log_error_write(srv, __FILE__, __LINE__, "sd", "listsize=", ls);
-		con->file_finished = 1;
-		if (ran) {
-			char *cran = PyString_AsString(r3);
-			con->http_status = 206;
-			response_header_insert(srv, con, 
-					CONST_STR_LEN("Content-Range"), 
-					cran, strlen(cran));
-		}
-		for (i = 0; i < ls; i++) {
-			PyObject *t = PyList_GetItem(r2, i);
-			PyObject *t1 = PyTuple_GetItem(t, 0);
-			PyObject *t2 = PyTuple_GetItem(t, 1);
-			PyObject *t3 = PyTuple_GetItem(t, 2);
-			char *fpath = PyString_AsString(t1);
-			int start = PyInt_AsLong(t2);
-			int len = PyInt_AsLong(t3);
-			log_error_write(srv, __FILE__, __LINE__, "sdsdd", 
-						"flist", i, fpath, start, len);
-			buffer *b = buffer_init_string(fpath);
-			http_chunk_append_file(srv, con, b, start, len);
-			buffer_free(b);
-		}
-		return HANDLER_FINISHED;
-	} else {
-		char *s2 = PyString_AsString(r2);
-		con->http_status = 302;
-		response_header_insert(srv, con, 
-				CONST_STR_LEN("Location"), 
-				s2, strlen(s2));
-		log_error_write(srv, __FILE__, __LINE__, "ss", "302->", s2);
-		return HANDLER_FINISHED;
-	}
-}
-
 static int call_jmp(
 		connection *con, server *srv, 
 		char *path, char *qry, char *ran)
@@ -260,27 +211,52 @@ static int call_jmp(
 	PyObject *r = PyObject_CallFunction(py_jmp, "sss", path, qry, ran);
 	PyObject *r1 = PyTuple_GetItem(r, 0);
 	PyObject *r2 = PyTuple_GetItem(r, 1);
-	PyObject *r3 = PyTuple_GetItem(r, 2);
 	char *s1 = PyString_AsString(r1);
-	log_error_write(srv, __FILE__, __LINE__, "ss", "jmp=", s1);
+	int ret = HANDLER_GO_ON;
+
+	log_error_write(srv, __FILE__, __LINE__, "ss", 
+			"jmp-ret      :", s1);
+	log_error_write(srv, __FILE__, __LINE__,  "sb", 
+			"Doc-Root     :", con->physical.doc_root);
+	log_error_write(srv, __FILE__, __LINE__,  "sb", 
+			"Rel-Path     :", con->physical.rel_path);
+	log_error_write(srv, __FILE__, __LINE__,  "sb", 
+			"Path         :", con->physical.path);
+	log_error_write(srv, __FILE__, __LINE__,  "sb", 
+			"BaseDir      :", con->physical.basedir);
+	log_error_write(srv, __FILE__, __LINE__,  "sb", 
+			"ETag         :", con->physical.etag);
 	if (*s1 == 'm') {
-		con->file_finished = 1;
+		//con->file_finished = 1;
+		//con->http_status = 200;
+		/*
 		if (ran) {
+			PyObject *r3 = PyTuple_GetItem(r, 2);
 			char *cran = PyString_AsString(r3);
 			con->http_status = 206;
 			response_header_insert(srv, con, 
 					CONST_STR_LEN("Content-Range"), 
 					cran, strlen(cran));
 		}
+		*/
 		char *fpath = PyString_AsString(PyTuple_GetItem(r2, 0));
 		int start = PyInt_AsLong(PyTuple_GetItem(r2, 1));
 		int len = PyInt_AsLong(PyTuple_GetItem(r2, 2));
-		log_error_write(srv, __FILE__, __LINE__, "ssdd", 
-					"dumpfile", fpath, start, len);
-		buffer *b = buffer_init_string(fpath);
-		http_chunk_append_file(srv, con, b, start, len);
-		buffer_free(b);
+		char *docroot = PyString_AsString(PyTuple_GetItem(r2, 3));
+		char *relpath = PyString_AsString(PyTuple_GetItem(r2, 4));
+
+		log_error_write(srv, __FILE__, __LINE__, "sss", 
+					"mine         :", fpath, docroot, relpath);
+//		buffer *b = buffer_init_string(fpath);
+//		http_chunk_append_file(srv, con, b, start, len);
+//		buffer_free(b);
+		buffer_copy_string(con->physical.path, fpath);
+		buffer_copy_string(con->physical.doc_root, docroot);
+		buffer_copy_string(con->physical.rel_path, relpath);
+		buffer_copy_string(con->physical.basedir, docroot);
+		goto end;
 	} else {
+		ret = HANDLER_FINISHED;
 		char *s2 = PyString_AsString(r2);
 		con->http_status = 302;
 		response_header_insert(srv, con, 
@@ -288,8 +264,10 @@ static int call_jmp(
 				s2, strlen(s2));
 		log_error_write(srv, __FILE__, __LINE__, "ss", "302->", s2);
 	}
+
+end:
 	Py_XDECREF(r);
-	return HANDLER_FINISHED;
+	return ret;
 }
 
 
@@ -298,15 +276,22 @@ URIHANDLER_FUNC(mod_range_path_handler) {
 	int s_len;
 	size_t k;
 
-	char *s = con->uri.query->ptr;
-	log_error_write(srv, __FILE__, __LINE__, "ss", "query=", s);
-	log_error_write(srv, __FILE__, __LINE__, "ss", "range=", 
-			con->request.http_range);
-	if (s && strstr(s, "yjwt")) {
-		return call_jmp(con, srv, 
-				con->uri.path->ptr, s, con->request.http_range);
-		/*
-		char *ss = strstr(s, "302");
+	char *qry = con->uri.query->ptr;
+	char *path = con->uri.path->ptr;
+	char *ran = con->request.http_range;
+	log_error_write(srv, __FILE__, __LINE__,  "s", "");
+	log_error_write(srv, __FILE__, __LINE__,  "s", 
+			"==== ");
+	log_error_write(srv, __FILE__, __LINE__, "ss", 
+			"path         :", path);
+	log_error_write(srv, __FILE__, __LINE__, "ss", 
+			"qry          :", qry);
+	log_error_write(srv, __FILE__, __LINE__, "ss", 
+			"ran          :", ran);
+//	if (qry && strstr(qry, "yjwt")) {
+		return call_jmp(con, srv, path, qry, ran);
+//	}
+		/* char *ss = strstr(s, "302");
 		if (ss) {
 			con->http_status = 302;
 			response_header_insert(srv, con, CONST_STR_LEN("Location"), 
@@ -354,19 +339,6 @@ URIHANDLER_FUNC(mod_range_path_handler) {
 			return HANDLER_FINISHED;
 		}
 		*/
-	}
-
-	if (0) {
-		char *ss = strstr(s, "rs=");
-		char *es = strstr(s, "rl=");
-		//log_error_write(srv, __FILE__, __LINE__, "s", s);
-		if (ss && es) {
-			http_chunk_append_file(srv, con, con->physical.path, 
-					atoi(ss+3), atoi(es+3));
-			con->file_finished = 1;
-			return HANDLER_FINISHED;
-		}
-	}
 
 	return HANDLER_GO_ON;
 

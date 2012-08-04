@@ -1,11 +1,9 @@
-#!/usr/bin/perl
+#!/usr/bin/python
 
-sub fuck { print "failed @_[0]\n"; exit; }
-sub proc {
-	fuck "youku start= unsupported" if ($url =~ /youku/ && $url =~ /start=/);
-	print "ok\n";
-}
-($url, $ext) = @ARGV;
-if ($url) { proc; exit }
-else { while (<STDIN>) { chomp($url = $_); proc } }
+import sys
+sys.path.append('/usr/lib/xcache')
+from util import *
 
+if __name__ == '__main__':
+	print url_is_valid(sys.argv[1])
+	

@@ -44,11 +44,12 @@ while i < len(m):
 	newcov.append((s, e))
 print 'tot', tot, 'left', clen - tot
 
-resfp = open('%s/F.%s' % (rootdir, sha), 'r+b')
-fp = open(cappath, 'rb')
+fp = open(cappath, 'r+b')
 fp.seek(hl)
+fp.truncate(hl+re-rs+1)
+resfp = open('%s/F.%s' % (rootdir, sha), 'r+b')
 resfp.seek(rs)
-shutil.copyfileobj(fp, resfp, re-rs+1)
+shutil.copyfileobj(fp, resfp)
 
 marshal.dump({'clen':clen, 'cov':newcov}, open(covpath, 'wb+'))
 print 'ok'

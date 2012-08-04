@@ -44,9 +44,9 @@ $start = rindex($s, "\r\n\r\n")+4;
 fuck "EE: rnrn no found" if $start == -1;
 ll "DD: start $start size $size clen $clen";
 
-chomp($r = `xcache-urltest $url`);
+chomp($r = `xcache-urltest "$url"`);
 ll "DD: urltest $r";
-fuck "EE: urltest failed" if ($r !~ /^ok/);
+fuck "EE: urltest failed" if ($r !~ /^True/);
 
 if (!$crange) {
 	$crange = sprintf "0-%d/%d", $clen-1, $clen;

@@ -3,22 +3,59 @@
 use threads;
 use threads::shared;
 
-my (
-	$jmp_mine, $jmp_pass, 
-	$f_all, $f_zio, $f_rst, $f_reget) :shared;
+my (%H, %S, %N) :shared;
 
 $mb = 1024*1024.;
 
 sub json {
-	for $i (@_) {
+	%h = @_; 
+	'{' . join(',', map { sprintf "\"$_\":%.2lf", $h{$_} } keys %h ) . "}\n"; 
+}
+
+sub inc {
+	($i) = @_;
+	$H{$i}++;
+}
+
+sub sum {
+	%h = @_;
+	for $k (keys %h) {
+		$S{$k} += $h{$k};
+		$N{$k}++;
 	}
+}
+
+
+sub avg {
+	$t = time;
+	open F, ">>/tl/rows";
+	%o = ();
+	for $k (keys %S) {
+		$v = $S{$k};
+		$n = $N{$k};
+		if ($n) {
+			$a = $v / $n;
+		} else {
+			$a = 0;
+		}
+		$o{$k} = $a;
+	}
+	@q = qw{hash};
+	for $k qw{} {
+	}
+	close F;
+}
+
+sub out {
+	sum @_;
+	print json @_;
 }
 
 sub thread_a {
 	open F, "tail -f /l/cgi2|";
 	while (<F>) {
-		$jmp_mine++ if /^mine/;
-		$jmp_pass++ if /^pass/;
+		inc 'jmp_mine' if /^mine/;
+		inc 'jmp_pass' if /^pass/;
 	}
 }
 
@@ -27,14 +64,13 @@ sub thread_b {
 	open S, "xcache-stateth |";
 	open G, "tail -f -n1 /l/cap|";
 	while (<G>) { 
-		$f_zio++ if /zero-io/;
-		$f_rst++ if /fin-rst/;
-		$f_reget++ if /re-get/;
+		inc 'f_zio' if /zero-io/;
+		inc 'f_rst' if /fin-rst/;
+		inc 'f_reget' if /re-get/;
 		if (/^info/) {
 			($io, $max, $act, $del, $got) = /(\d+)/g;
-			printf '{"io_ssd":%.2lf, "ht_max":%d, "ht_active":%d,'.
-						 '"f_delsmall":%.2lf, "f_got":%.2lf'."}\n", 
-				$io/$mb, $max, $act, $del, $got;
+			out 'io_ssd', $io/$mb, 'ht_max', $max, 'ht_active', $act, \
+					'f_delsmall', $del, 'f_got', $got;
 		}
 	}
 }
@@ -43,20 +79,17 @@ sub thread_c {
 	open H, "tail -f /l/L|";
 	while (<H>) {
 		if (/Done: (\d+)/) {
-			$f_all++ ;
-			$s_f_all++;
-			$s_done_bytes += int($1);
+			inc 'f_all';
 		}
 	}
 }
 
 sub thread_d {
 	$| = 1;
-	open S, "xcache-stateth |";
 	open I, "top -d1 -b|";
 	while (<I>) {
 		if (/^Cpu/ && /(\S+)%id/) {
-			printf '{"c_all":%.2lf}'."\n", 100-$1;
+			out 'c_all', 100-$1;
 		}
 	}
 }
@@ -68,29 +101,14 @@ sub thread_e {
 		($a, $b) = /(\d+)/g;
 		$ia = $a*8/$mb;
 		$ib = $b*8/$mb;
-		printf '{"io_eth0":%.2lf, "io_eth1":%.2lf}'."\n", $ia, $ib;
-		$s_io_eth0 += $ia;
-		$s_io_eth1 += $ib;
-		$nr_io_eth0 ++;
-		$nr_io_eth1 ++;
+		out 'io_eth0', $ia, 'io_eth1', $ib;
 	}
 }
 
 sub thread_timer {
 	while (1) {
-		sleep 60;
-		$f = "/tl/" . time;
-		open F, ">$f";
-
-		$a0 = $s_io_eth0 / $nr_io_eth0;
-		$a1 = $s_io_eth1 / $nr_io_eth1;
-		print F '{"io_eth0":%.2lf, "io_eth1":%.2lf}'."\n", $a0, $a1;
-
-		close F;
-		$s_io_eth0 = $s_io_eth1 = 0;
-		$nr_io_eth0 = $nr_io_eth1 = 0;
-		$s_f_all++;
-		$s_done_bytes += int($1);
+		sleep 2;
+#		avg;
 	}
 }
 
@@ -108,16 +126,9 @@ while (1) {
 		$d_hd = $sz if /sdc/;
 	}
 	close A;
-	printf '{'.
-					'"f_zio":%d, "f_rst":%d, "f_reget":%d,'.
-					'"jmp_mine":%d, "jmp_pass":%d, "d_hd":%.2lf,'.
-					'"d_ssd":%.2lf, "f_all":%d'.
-					"}\n",
-				 $f_zio, $f_rst, $f_reget,
-				 $jmp_mine, $jmp_pass, $d_hd/1024./1024, 
-				 $d_ssd/1024./1024, $f_all;
-	$jmp_mine = $jmp_pass = $f_all = 0;
-	$f_zio = $f_rst = $f_reget = 0;
+	out 'd_hd', $d_hd/1024./1024, 'd_ssd', $d_ssd/1024./1024, %H;
+	sum %H;
+	%H = ();
 	sleep 1;
 }
 

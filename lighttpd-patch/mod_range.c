@@ -288,8 +288,10 @@ URIHANDLER_FUNC(mod_range_path_handler) {
 			"qry          :", qry);
 	log_error_write(srv, __FILE__, __LINE__, "ss", 
 			"ran          :", ran);
+	if (strstr(path, "xcache")) 
+		return HANDLER_GO_ON;
 //	if (qry && strstr(qry, "yjwt")) {
-		return call_jmp(con, srv, path, qry, ran);
+	return call_jmp(con, srv, path, qry, ran);
 //	}
 		/* char *ss = strstr(s, "302");
 		if (ss) {

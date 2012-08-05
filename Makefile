@@ -88,7 +88,6 @@ restart-lighttpd:
 	/etc/init.d/lighttpd restart
 
 cp: build-netsniff
-	@rm -rf /var/www/xcache*
 	@cp xcache-jmp.pl xcache-charts.html /var/www
 	@ln -sf /c /var/www/xcache-c
 	@ln -sf /d /var/www/xcache-d
@@ -99,7 +98,7 @@ cp: build-netsniff
 	make update-lighttpd
 
 clear:
-	@rm -rf /c/* /d/* 
+	@rm -rf /c/* /d/* /tl/*
 	> /l/L
 	> /l/cap
 	> /l/E
@@ -186,11 +185,11 @@ tail-lighttpd-log:
 
 
 update-lighttpd:
+	mkdir -p /var/www/xcache
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
-	cp -dp xcache-jmp.pl /var/www/
-	cp -dp xcache-fastjmp.py /usr/bin
+	cp -dp xcache-cgi.pl /var/www/xcache/cgi.pl
 	cp -dp util.py /usr/lib/xcache
-	ln -sf /root/xcache /var/www/xcache-dev
+	ln /root/xcache/xcache-charts.html /var/www/xcache/index.html
 
 update-restart-lighttpd:
 	make stop-lighttpd
@@ -202,6 +201,16 @@ update-xcache:
 	xcache-stop
 	make install
 	xcache-start
+
+wget-js:
+	wget -O /var/www/xcache/jquery.js http://code.jquery.com/jquery-1.7.2.min.js
+	wget -O /var/www/xcache/highcharts.js http://code.highcharts.com/highcharts.js
+	wget -O /var/www/xcache/socket.js https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js
+
+test-wget-listc:
+	echo ddd > /c/A.sss
+	echo ccc > /c/A.ss
+	wget -O - "http://localhost/xcache-cgi.pl?listc"
 
 test-wget-mgr:
 	wget -O /tmp/wget "http://localhost/QQPCMgr_Setup_Basic_68_2393.exe?yjwt"

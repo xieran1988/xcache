@@ -6,7 +6,9 @@ from urlparse import *
 from xcache import *
 import logging 
 
-for i in os.listdir('/c/'):
+l = os.listdir('/c')
+print 'total %d' % len(l)
+for i in l:
 	path = '/c/' + i
 	size = os.path.getsize(path)
 	get = open(path).readline().strip()

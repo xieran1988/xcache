@@ -1,15 +1,32 @@
 <html>
 <head>
-	<script language="javascript" type="text/javascript" src="http://code.jquery.com/jquery-1.7.2.min.js"></script>  
-	<script language="javascript" type="text/javascript" src="http://code.highcharts.com/highcharts.js"></script>  
-	<script language="javascript" type="text/javascript" src="https://raw.github.com/LearnBoost/socket.io-client/master/dist/socket.io.min.js"></script>  
+	<style>
+		.chart {
+			width: 370px;
+			height: 200px;
+			float: left;
+		}
+	</style>
+	<script language="javascript" type="text/javascript" src="/xcache/jquery.js"></script>  
+	<script language="javascript" type="text/javascript" src="/xcache/highcharts.js"></script>  
+	<script language="javascript" type="text/javascript" src="/xcache/socket.js"></script>  
 	<script type="text/javascript">  
-		function table(title, ytitle, series) {
-			$('body').append($('div').attr('id', title)
-					.css('width', '370px').css('height', '200px')
-					.css('float', 'left')
-					);
-			return new Highcharts.Chart({
+
+		function realtime_chart(title, ytitle, series) {
+			$('.mainfrm').append("<div id='" + title + "' class=chart >");
+			var t = new Highcharts.Chart({
+				chart: { renderTo:title, type:'spline', animation:false },
+				title: { text:title },
+				xAxis: { type:'datetime', tickPixelInterval:200 },
+				yAxis: { title: { text:ytitle } },
+				series: series
+			});
+			ta.push(t);
+		}
+
+		function static_chart(title, ytitle, series) {
+			$('.mainfrm').append("<div id='" + title + "' class=chart >");
+			var t = new Highcharts.Chart({
 				chart: { renderTo:title, type:'spline', animation:false },
 				title: { text:title },
 				xAxis: { type:'datetime', tickPixelInterval:200 },
@@ -17,23 +34,31 @@
 				series: series
 			});
 		}
+
+		var ta = [];
 		var t = (new Date()).getTime(), i, _d = [];
 		for (i = 0; i < 30; i++) _d.push([t,0]);
 		function D(s) { return {name:s, data:_d}; }
-		$(document).ready(function() { 
-			var ta = [
-				table('cpu-usage', '%', [D('c_all')]),
-				table('hd-usage', 'GB', [D('d_hd')]),
-				table('ssd-usage', 'GB', [D('d_ssd')]),
-				table('hash-count', 'count/s', [D('ht_active'), D('ht_max')]),
-				table('files', 'count/s', [
-					D('f_all'), D('f_delsmall'), D('f_zio'), D('f_rst'),
-					D('f_reget')
-				]),
-				table('network-io', 'Mb/s', [D('io_eth0'), D('io_eth1')]),
-				table('ssd-io', 'MB/s', [D('io_ssd')]),
-				table('http-jmps', 'count/s', [D('jmp_pass'), D('jmp_mine')]),
-			];
+
+
+		function realtime() {
+			realtime_chart('cpu-usage', '%', [D('c_all')]);
+			realtime_chart('hd-usage', 'GB', [D('d_hd')]);
+			realtime_chart('ssd-usage', 'GB', [D('d_ssd')]);
+			realtime_chart('hash-count', 'count/s', [D('ht_active'), D('ht_max')]);
+			realtime_chart('files', 'count/s', [
+					D('f_all'), 
+					D('f_delsmall'), 
+					//D('f_zio'), 
+					D('f_rst'),
+					//D('f_reget')
+			]);
+			realtime_chart('network-io', 'Mb/s', [D('io_eth0'), D('io_eth1')]);
+			realtime_chart('ssd-io', 'MB/s', [D('io_ssd')]);
+			realtime_chart('http-jmps', 'count/s', [D('jmp_pass'), D('jmp_mine')]);
+		}
+		
+		function conn_sock() { 
 			io.connect('http://'+window.location.hostname+':8889')
 				.on('news', function (data) {
 					console.log(data);
@@ -49,10 +74,38 @@
 							}
 						}}
 				});
+		}
+
+		function show_capture() {
+			$.ajax({
+				url: '/xcache/cgi.pl?listc',
+			}).done(function(d) {
+				$('.mainfrm').html('<pre>'+d+'</pre>');
+			});
+		}
+
+		$(document).ready(function() { 
+			qry = window.location.search;
+			if (qry == '?realtime' || qry == '') {
+				realtime();
+			}
+			if (qry == '?capture') {
+				show_capture();
+				setTimeout(show_capture, 1000);
+			}
 		});
 	</script>  
 </head>
 <body>  
-	<div id="main"></div>
+	<div> 
+		<a href="?realtime">Realtime </a> |
+		<a href="?capture">Capture</a> |
+		<a href="?5min">5 Min</a> |
+		<a href="?30min">30 Min</a> |
+		<a href="?6h">6 Hour</a> |
+		<a href="?1d">1 Day</a> |
+ 	</div>
+	<div class=mainfrm></div>
 </body>  
 </html>
+

@@ -1,0 +1,24 @@
+#!/usr/bin/perl
+
+%h = ();
+open F, "/l/L";
+while (<F>) {
+	if (/Done: \S+ \S+ (\S+)/) {
+		$sha = $1;
+		$h{$sha}++;
+		#	print "$1\n";
+	}
+}
+@a = sort { $h{$b} <=> $h{$a} } keys %h;
+@b = @a[ 1 .. 200];
+for $k (@b) {
+	print "==== $k $h{$k}\n";
+	open P, "/d/L.$k";
+	while (<P>) {
+		print if /GET/;
+		if (/Host/) {
+			print; last;
+		}
+	}
+}
+

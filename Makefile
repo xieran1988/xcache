@@ -70,6 +70,7 @@ clear-and-restart-all:
 
 restart-all:
 	make stop-all
+	rm -rf /c/*
 	make install
 	make build-lighttpd
 	make start-all
@@ -89,12 +90,10 @@ restart-lighttpd:
 
 cp: build-netsniff
 	@cp xcache-jmp.pl xcache-charts.html /var/www
-	@ln -sf /c /var/www/xcache-c
-	@ln -sf /d /var/www/xcache-d
-	@ln -sf /l /var/www/xcache-l
 	@rm -rf /usr/lib/xcache/*
 	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
 	@cp -dp xcache-* /usr/bin/
+	@cp -dp data.js /usr/lib/xcache
 	make update-lighttpd
 
 clear:
@@ -183,13 +182,14 @@ test-lighttpd:
 tail-lighttpd-log:
 	tail /var/log/lighttpd/error.log
 
-
 update-lighttpd:
 	mkdir -p /var/www/xcache
 	cp 10-xcache.conf /etc/lighttpd/conf-enabled
+	cp lighttpd.conf /etc/lighttpd/
 	cp -dp xcache-cgi.pl /var/www/xcache/cgi.pl
 	cp -dp util.py /usr/lib/xcache
-	ln /root/xcache/xcache-charts.html /var/www/xcache/index.html
+	ln -f /root/xcache/xcache-charts.html /var/www/xcache/index.html
+	ln -sf /var/log/lighttpd/error.log /le
 
 update-restart-lighttpd:
 	make stop-lighttpd

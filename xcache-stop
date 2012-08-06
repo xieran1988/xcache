@@ -1,9 +1,10 @@
 #!/bin/sh
 
 pkill xcache-cap
-screen -S cap -X quit
-screen -S reap -X quit
-screen -S logeth -X quit
+#screen -S cap -X quit
+#screen -S reap -X quit
+#screen -S logeth -X quit
+xcache-screen-killall
 exit 0
 
 

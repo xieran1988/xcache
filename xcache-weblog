@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd /root/xcache && {
+	xcache-taillog | node data.js
+}

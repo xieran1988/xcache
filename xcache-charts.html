@@ -47,10 +47,10 @@
 			realtime_chart('ssd-usage', 'GB', [D('d_ssd')]);
 			realtime_chart('hash-count', 'count/s', [D('ht_active'), D('ht_max')]);
 			realtime_chart('files', 'count/s', [
-					D('f_all'), 
-					D('f_delsmall'), 
+					D('f_done'), 
+					//D('f_delsmall'), 
 					//D('f_zio'), 
-					D('f_rst'),
+					//D('f_rst'),
 					//D('f_reget')
 			]);
 			realtime_chart('network-io', 'Mb/s', [D('io_eth0'), D('io_eth1')]);
@@ -61,11 +61,11 @@
 		function conn_sock() { 
 			io.connect('http://'+window.location.hostname+':8889')
 				.on('news', function (data) {
-					console.log(data);
+					//console.log(data);
 					var j = jQuery.parseJSON(data);
 					for (t in ta) {
 						var x = (new Date()).getTime();
-						console.log(ta[t].series);
+						//console.log(ta[t].series);
 						for (s in ta[t].series) {
 							a = ta[t].series[s];
 							for (i in j) {
@@ -82,16 +82,17 @@
 			}).done(function(d) {
 				$('.mainfrm').html('<pre>'+d+'</pre>');
 			});
+				setTimeout(show_capture, 1000);
 		}
 
 		$(document).ready(function() { 
 			qry = window.location.search;
 			if (qry == '?realtime' || qry == '') {
 				realtime();
+				conn_sock();
 			}
 			if (qry == '?capture') {
 				show_capture();
-				setTimeout(show_capture, 1000);
 			}
 		});
 	</script>  
@@ -100,10 +101,12 @@
 	<div> 
 		<a href="?realtime">Realtime </a> |
 		<a href="?capture">Capture</a> |
+		<!--
 		<a href="?5min">5 Min</a> |
 		<a href="?30min">30 Min</a> |
 		<a href="?6h">6 Hour</a> |
 		<a href="?1d">1 Day</a> |
+		!-->
  	</div>
 	<div class=mainfrm></div>
 </body>  

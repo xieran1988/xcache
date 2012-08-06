@@ -3,4 +3,5 @@
 screen -dmS cap xcache-cap --in eth1 -s
 screen -dmS reap xcache-reap
 screen -dmS logeth xcache-logeth
+screen -dmS weblog xcache-weblog
 

@@ -5,7 +5,9 @@ $mb = 1024.*1024;
 while (1) {
 	open F, "/proc/net/dev";
 	while (<F>) {
-		($b0, $p0) = /\s(\d+)/g if /eth0/;
+		@a = /\s(\d+)/g if /eth0/;
+		$b0 = $a[8];
+		$p0 = $a[9];
 		($b1, $p1) = /\s(\d+)/g if /eth1/;
 	}
 	$sb0 = $b0 - $lb0; $sp0 = $p0 - $lp0;

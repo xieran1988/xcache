@@ -4,7 +4,10 @@ use threads;
 use threads::shared;
 
 my (%H, %S, %N) :shared;
-
+%oH = (	
+	'f_done', 0, 'f_delsmall', 0, 'f_rst', 0,
+	'jmp_pass', 0, 'jmp_mine', 0
+);
 $mb = 1024*1024.;
 
 sub json {
@@ -23,27 +26,6 @@ sub sum {
 		$S{$k} += $h{$k};
 		$N{$k}++;
 	}
-}
-
-
-sub avg {
-	$t = time;
-	open F, ">>/tl/rows";
-	%o = ();
-	for $k (keys %S) {
-		$v = $S{$k};
-		$n = $N{$k};
-		if ($n) {
-			$a = $v / $n;
-		} else {
-			$a = 0;
-		}
-		$o{$k} = $a;
-	}
-	@q = qw{hash};
-	for $k qw{} {
-	}
-	close F;
 }
 
 sub out {
@@ -79,7 +61,7 @@ sub thread_c {
 	open H, "tail -f /l/L|";
 	while (<H>) {
 		if (/Done: (\d+)/) {
-			inc 'f_all';
+			inc 'f_done';
 		}
 	}
 }
@@ -128,7 +110,7 @@ while (1) {
 	close A;
 	out 'd_hd', $d_hd/1024./1024, 'd_ssd', $d_ssd/1024./1024, %H;
 	sum %H;
-	%H = ();
+	%H = %oH;
 	sleep 1;
 }
 

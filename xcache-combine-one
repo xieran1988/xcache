@@ -10,6 +10,8 @@ clen = int(sys.argv[5])
 rs = int(sys.argv[6])
 re = int(sys.argv[7])
 
+logf = open('/l/cl', 'a+')
+
 print sha, rootdir, cappath, 'hl', hl, 'clen', clen, 'rs', rs, 're', re
 
 covpath = '%s/R.%s' % (rootdir, sha)

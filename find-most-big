@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+$a = 'find /d/ -name "L.*" -type f -exec stat -c "%s %n" {} \\; ';
+$b = 'sort -nr | head -30';
+$cmd = "$a";
+print "$cmd\n";
+system($cmd);
+
+

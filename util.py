@@ -75,8 +75,8 @@ def jmp(p, qry, ran, sha=None):
 		fname = os.listdir(root)[0]
 
 		if r:
-			logw('mine %s %s %s' % (p, ran, sha))
-			logend()
+			logw('mine %s %s %s %d %d %d' % (p, ran, sha, rs, re, clen))
+#			logend()
 			return 'mine', \
 						 (root+'/'+fname, rs, re-rs+1, root, '/'+fname), \
 						 'bytes %d-%d/%d' % (rs, re, clen)
@@ -84,12 +84,12 @@ def jmp(p, qry, ran, sha=None):
 		traceback.print_exc()
 		err = traceback.format_exc()
 	to = 'http:/%s?%s' % (p, qry.replace('yjwt08', 'yjwt09'))
-	logw('pass %s %s' % (to, err))
-	logend()
+	logw('pass %s' % (to))
+#	logend()
 	return 'pass', to
 
-logw('==== starts ====')
-logend()
+#logw('==== starts ====')
+#logend()
 
 if __name__ == '__main__':
 	if len(sys.argv) > 1 and sys.argv[1] == 'sha':

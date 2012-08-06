@@ -81,7 +81,7 @@ static unsigned int hash(int a, int b, int c, int d) {
 static char *mymktemp(char *p) { return mktemp(p); }
 
 static int opt_notdelsmall = 0;
-static int opt_ziotimeout = -1;
+static int opt_ziotimeout = 6;
 
 static void fin_conn(conn_t *c, char *s, char C)
 {
@@ -263,7 +263,6 @@ void xcache_init(void)
 {
 //	INIT_LIST_HEAD(&conns_active);
 //	if (getenv("notdelsmall"))
-	opt_notdelsmall = 1;
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
 	signal(SIGALRM, sigalarm);

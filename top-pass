@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+
+%L = ();
+%C = ();
+%hlen = ();
+open F, "/l/cgi2";
+while (<F>) {
+	if (/pass \S+ \S+ (\S+) (\d+) (\d+) (\d+)/) {
+		$sha = $1;
+		$rs = $2;
+		$re = $3;
+		$L{$sha} += $re - $rs + 1;
+		$C{$sha}++;
+		#	print "$1\n";
+	}
+}
+@a = sort { $L{$b} <=> $L{$a} } keys %L;
+@b = @a[ 1 .. 20 ];
+$mb = 1024.*1024;
+for $k (@b) {
+	printf "==== $k %.2lfM $C{$k}\n", $L{$k}/$mb;
+	open P, "/d/L.$k";
+	while (<P>) {
+		print if /GET/;
+		if (/Host/) {
+			print; last;
+		}
+	}
+	print `./dump-rsm.py /d/R.$k | head -1`;
+}
+

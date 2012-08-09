@@ -84,7 +84,7 @@ def jmp(p, qry, ran, sha=None):
 		traceback.print_exc()
 		err = traceback.format_exc()
 	to = 'http:/%s?%s' % (p, qry.replace('yjwt08', 'yjwt09'))
-	logw('pass %s' % (to))
+	logw('pass %s %s' % (to, sha))
 #	logend()
 	return 'pass', to
 

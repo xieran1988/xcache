@@ -89,7 +89,6 @@ restart-lighttpd:
 	/etc/init.d/lighttpd restart
 
 cp: build-netsniff
-	@cp xcache-jmp.pl xcache-charts.html /var/www
 	@rm -rf /usr/lib/xcache/*
 	@cp netsniff-ng/src/build/netsniff-ng/netsniff-ng /usr/bin/xcache-cap
 	@cp -dp xcache-* /usr/bin/
@@ -167,6 +166,9 @@ test-mod-range:
 	wget -O - "http://localhost/www.youku.com/aaa.mp4?y=yjwt08"
 #	wget -O - "http://localhost/dddd?302"
 
+test-cap:
+	./test-cap.pl
+
 test-lighttpd:
 	make update-restart-lighttpd
 	echo 12346678 > /var/www/xcache-testfile
@@ -188,7 +190,8 @@ update-lighttpd:
 	cp lighttpd.conf /etc/lighttpd/
 	cp -dp xcache-cgi.pl /var/www/xcache/cgi.pl
 	cp -dp util.py /usr/lib/xcache
-	ln -f /root/xcache/xcache-charts.html /var/www/xcache/index.html
+	ln -f /root/xcache/index.html /var/www/xcache/index.html
+	cp *.js /var/www/xcache/
 	ln -sf /var/log/lighttpd/error.log /le
 
 update-restart-lighttpd:

@@ -16,21 +16,21 @@
 
 #define TIMEOUT 1
 
-void xcache_process_packet(uint8_t *p, int plen);
+void xcache_process_packet(uint8_t *p, int plen, int sec, int usec);
 void xcache_init(void);
 
 #define dbg printf
 
 typedef struct {
 //	struct list_head l;
-	double t;
-	FILE *f;
+	FILE *f, *f_iostat;
 	int fd;
 	int r206;
 	char p[256];
+	char p_iostat[256];
 	char get[1600];
 	int totio, io, ack, reqlen;
-	int ziotm;
+	double lastiotm, conntm;
 	unsigned int h;
 	int rsp;
 	char s;
@@ -39,15 +39,13 @@ typedef struct {
 
 #define NR 4800
 conn_t conn[NR];
-//struct list_head conns_active;
 static int nrconn, maxconn;
 static FILE *logf;
 
 static int f_delsmall, f_got;
 static int totio;
-
-static int alrm;
 static int nrrsp;
+static double curtm;
 
 static void file_open(conn_t *c, char *p) {
 	c->f = fopen(p, "wb+");
@@ -66,11 +64,17 @@ static void file_write(conn_t *c, void *buf, int len) {
 	c->io += len;
 	c->totio += len;
 	totio += len;
+	c->lastiotm = curtm;
 }
 
 static void file_close(conn_t *c) {
 	if (c->f)
 		fclose(c->f);
+}
+
+static void dump_iostat(conn_t *c) {
+	if (c->f_iostat)
+		fprintf(c->f_iostat, "%.6lf %d\n", curtm, c->io);
 }
 
 static unsigned int hash(int a, int b, int c, int d) {
@@ -80,15 +84,18 @@ static unsigned int hash(int a, int b, int c, int d) {
 
 static char *mymktemp(char *p) { return mktemp(p); }
 
-static int opt_notdelsmall = 0;
-static int opt_ziotimeout = 6;
+static int opt_notdelsmall = 1;
+static int opt_ziotimeout = 3;
 
 static void fin_conn(conn_t *c, char *s, char C)
 {
 	file_close(c);
+	if (c->f_iostat)
+		fclose(c->f_iostat);
 	if (!opt_notdelsmall && c->totio < 1000*1024 && !c->r206) {
 		f_delsmall++;
 		unlink(c->p);
+		unlink(c->p_iostat);
 	} else {
 		f_got++;
 		char tmp[128];
@@ -113,9 +120,8 @@ static void timer(void)
 			continue;
 		if (c->io)
 			active++;
-		if (!c->io) 
-			c->ziotm++;
-		if (opt_ziotimeout > 0 && c->ziotm >= opt_ziotimeout)
+		dump_iostat(c);
+		if (opt_ziotimeout > 0 && (curtm - c->lastiotm) >= opt_ziotimeout)
 			fin_conn(c, "zero-io", 'Z');
 		c->io = 0;
 		n++;
@@ -162,7 +168,7 @@ static int fuck_detect(uint8_t *p)
 	return 0;
 }
 
-void xcache_process_packet(uint8_t *p, int plen)
+void xcache_process_packet(uint8_t *p, int plen, int sec, int usec)
 {
 	char *pay;
 	uint8_t *ip, *tcp, tcpf;
@@ -172,9 +178,11 @@ void xcache_process_packet(uint8_t *p, int plen)
 
 	fuck_detect(p);
 
-	if (alrm) {
+	static double lasttm;	
+	curtm = sec + usec/1000000.;
+	if (curtm - lasttm > TIMEOUT) {
 		timer();
-		alrm = 0;
+		lasttm = curtm;
 	}
 
 	if (*(uint16_t *)(p + 12) == 0x6488) {
@@ -224,8 +232,11 @@ void xcache_process_packet(uint8_t *p, int plen)
 		c->ack = (int)ack;
 		strcpy(c->p, "/c/A.XXXXXX");
 		mymktemp(c->p);
+		strcpy(c->p_iostat, c->p);
+		c->p_iostat[3] = 'I';
 		memcpy(c->get, pay, paylen);
 		c->reqlen = paylen;
+		c->conntm = curtm;
 		nrconn++;
 		if (nrconn > maxconn)
 			maxconn = nrconn;
@@ -237,6 +248,7 @@ void xcache_process_packet(uint8_t *p, int plen)
 		if (!c->rsp) {
 			c->rsp++; 
 			nrrsp++; 
+			c->f_iostat = fopen(c->p_iostat, "w+");
 			file_open(c, c->p);
 			file_write(c, c->get, c->reqlen);
 		}
@@ -253,27 +265,19 @@ void xcache_process_packet(uint8_t *p, int plen)
 	}
 }
 
-static void sigalarm(int _D)
-{
-	alrm++;
-	alarm(TIMEOUT);
-}
-
 void xcache_init(void)
 {
-//	INIT_LIST_HEAD(&conns_active);
 //	if (getenv("notdelsmall"))
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
-	signal(SIGALRM, sigalarm);
-	alarm(TIMEOUT);
 	setbuf(stdout, NULL); 
 	fprintf(logf, 
 			"\n"
 			"====== starts ======\n" 
-			"%s zio-timeout %d\n"
+			"%s %s zio-timeout %d\n"
 			"\n",
 			opt_notdelsmall ? "notdelsmall" : "",
+			getenv("pcap") ? "pcap" : "",
 			opt_ziotimeout
 			);
 }

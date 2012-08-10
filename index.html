@@ -1,0 +1,211 @@
+<html>
+<head>
+	<style>
+		.chart {
+			width: 370px;
+			height: 200px;
+			float: left;
+		}
+		.range_bar {
+			border: 1px solid black;
+			width: 100px;
+			height: 10px;
+		}
+		.range_bar div {
+			float: left;
+			position: relative;
+			height: 10px;
+			background-color: red;
+		}
+
+	</style>
+	<script type="text/javascript" src="/xcache/jquery.js"></script>  
+	<script type="text/javascript" src="/xcache/highcharts.js"></script>  
+	<script type="text/javascript" src="/xcache/socket.js"></script>  
+	<script type="text/javascript" src="/xcache/temp.js"></script>  
+	<script type="text/javascript" src="/xcache/date.js"></script>
+</head>
+
+<body>
+
+	<div> 
+		<a href="?realtime">Realtime </a> |
+		<a href="?capture">Capture</a> |
+		<a href="?cached">Cached</a> |
+	</div>
+
+	<script id='range_bar' type='text/html'>
+		<div class=range_bar style='width:<%= width %>' >
+			<% for (i in L) { %>
+			<%   a = L[i]; %>
+			<%   style = 'width: ' + a.len*width/100 + 'px; '; %>
+			<%   style += 'left: ' + a.start*width/100 + 'px' + '; '; %>
+			<%	 style += 'background-color: ' + color + '; '; %>
+					 <div style="<%= style %>" > </div>
+			<% } %>
+		</div>
+	</script>
+
+	<div id=main> 
+	</div>
+
+	<script id='cached' type='text/html'>
+		<div>
+			<span>bc2353</span>
+			<span>filename</span>
+			<span>2.3M</span>
+			<span><%= include('range_bar', {color: 'red', width:900, L:[{start:50, len:10}, {start:10, len:3}]}) %></span>
+			<span> 95%/10M </span>
+		</div>
+		<table >
+			<tr>
+				<td> # </td>
+				<td> Range </td>
+				<td> Range </td>
+				<td> Result </td>
+				<td> Time </td>
+			</tr>
+			<tr>
+				<td> A.12312 </td>
+				<td> <%= include('range_bar', {color:'green', width:100, L:[{start:30, len:30}]}) %></td>
+				<td> 1-3000/12312 </td>
+				<td> <p style='color:green' > Merge </p></td>
+				<td> 2012-8-10 11:30:30 </td>
+			</tr>
+			<tr>
+				<td> 2 </td>
+				<td> <%= include('range_bar', {color:'green', width:100, L:[{start:90, len:5}]}) %></td>
+				<td> 33-1000/12312 </td>
+				<td> <p style='color:green' > Reject </p></td>
+				<td> 2012-8-10 11:30:30 </td>
+			</tr>
+			<tr>
+				<td> 3 </td>
+				<td> <%= include('range_bar', {color:'blue', width:100, L:[{start:90, len:5}]}) %></td>
+				<td> 33-1000/12312 </td>
+				<td> <p style='color:blue' > Pass </p></td>
+				<td> 2012-8-10 11:30:30 </td>
+			</tr>
+		</table>
+	</script>
+
+	<script id='charts' type='text/html'> 
+	<div>
+		<% for (i = 0; i < L.length; i++) { %>
+		<%   c = L[i]; %>
+				 <div id=<%= c.title %> class=chart ></div>
+		<% } %>
+	</div>
+	</script>
+
+	<script>  
+
+	xtbl = {};
+	var tbl;
+
+	function dummy_data(n) {
+		r = [];
+		x = (new Date()).getTime();
+		for (i = 0; i < n; i++) {
+			r.push([x, 0]);
+		}
+		return r;
+	}
+	
+	function render_chart(c) {
+		series = [];
+		if (c.type == 'live') {
+			for (i in c.x) {
+				series.push({name:c.x[i], data:dummy_data(30)});
+			}
+		}
+		cp = new Highcharts.Chart({
+			chart: { renderTo:c.title, type:'spline', animation:false },
+			title: { text:c.title },
+			xAxis: { type:'datetime', tickPixelInterval:200 },
+			yAxis: { title: { text:c.y } },
+			series: series
+		});
+		for (i in cp.series) {
+			s = cp.series[i];
+			xtbl[s.name] = s;
+		}
+		tbl = cp;
+	}
+
+	realtime_charts = [
+		{title:'testing', type:'live', y:'Mb/s', x:['io_test']},
+		/*
+		{title:'cpu-usage', type:'live', y:'%', x:['c_all']},
+		{title:'hd-usage', type:'live', y:'GB', x:['d_hd']},
+		{title:'ssd-usage', type:'live', y:'GB', x:['d_ssd']},
+		{title:'network-io', type:'live', y:'Mb/s', x:['io_eth0', 'io_eth1']},
+		{title:'hd-usage', type:'live', y:'%', x:['d_hd']},
+		{title:'hash-count', type:'live', y:'count/s', x:['ht_active', 'ht_max']},
+		{title:'files', type:'live', y:'count/s', x:['f_done']},
+		{title:'ssd-io', type:'live', y:'Mb/s', x:['io_ssd']},
+		{title:'http-jmps', type:'live', y:'count/s', x:['jmp_pass', 'jmp_mine']},
+		*/
+	];
+
+	function conn_sock() { 
+		io.connect('http://'+window.location.hostname+':8889')
+		.on('news', function (data) {
+			//console.log(data);
+			var r = jQuery.parseJSON(data);
+			for (k in r) {
+				xtbl[k].addPoint([Date.today(), r[k]]);
+			}
+		});
+	}
+
+	function random_point() {
+		r = {'io_test': Math.random()*3000};
+		x = (new Date()).getTime();
+		console.log(x);
+		for (k in r) {
+			//console.log(r[k], xtbl[k], x);
+			//xtbl[k].addPoint([Date.today(), r[k]], true, true);
+			tbl.series[0].addPoint([x, r[k]], true, true);
+		}
+	}
+
+	function realtime_test() {
+		for (i = 0; i < 30; i++) {
+			setTimeout(random_point, i*1000);
+		}
+	}
+
+	function show_capture() {
+		$.ajax({
+			url: '/xcache/cgi.pl?listc',
+		}).done(function(d) {
+			$('.mainfrm').html('<pre>'+d+'</pre>');
+		});
+		setTimeout(show_capture, 1000);
+	}
+
+	$(document).ready(function() { 
+		qry = window.location.search;
+		if (qry == '?cached') {
+			$('#main').html(template('cached', {}));
+		}
+		if (qry == '?realtime' || qry == '') {
+			l = realtime_charts;
+			$('#main').html(template('charts', {L:l}));
+			for (i in l) {
+				render_chart(l[i]);
+			}
+//			conn_sock();
+			realtime_test();
+		}
+		if (qry == '?capture') {
+			show_capture();
+		}
+	});
+
+	</script>  
+
+</body>  
+</html>
+

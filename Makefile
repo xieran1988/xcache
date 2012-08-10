@@ -4,14 +4,6 @@ all:
 	make install
 	xcache-start
 
-cap.o: CFLAGS += $(shell pkg-config python glib-2.0 --cflags)
-
-xcache-cap: cap.o queue.o main.o raw.o
-	gcc -o $@ $^ \
-		-lpthread \
-		$(shell pcap-config --libs) \
-		$(shell pkg-config python glib-2.0 --libs)
-
 all-start: install
 	/etc/init.d/lighttpd start
 	screen -dmS cap xcache-cap --in eth1 -s
@@ -27,6 +19,9 @@ all-stop:
 
 run-netsniff: install
 	xcache-cap --in eth1 -s #-f /root/port80-2.bpf 
+
+run-thuner-pcap: install clear
+	xcache-cap --in /root/thunder.pcap -s #-f /root/port80-2.bpf 
 
 umount-ssd:
 	umount /dev/sdd

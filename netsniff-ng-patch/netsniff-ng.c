@@ -296,6 +296,10 @@ static struct option long_options[] = {
 	{0, 0, 0, 0}
 };
 
+// fucked
+void xcache_init(void);
+void xcache_process_packet(void *, int, int, int);
+
 static void signal_handler(int number)
 {
 	switch (number) {
@@ -675,6 +679,10 @@ static void enter_mode_read_pcap(struct mode *mode)
 
 	gettimeofday(&start, NULL);
 
+	// fucked
+	setenv("pcap", "1", 1);
+	xcache_init();
+
 	while (likely(sigint == 0)) {
 		do {
 			memset(&phdr, 0, sizeof(phdr));
@@ -694,6 +702,10 @@ static void enter_mode_read_pcap(struct mode *mode)
 			 !bpf_run_filter(&bpf_ops, out, phdr.len));
 
 		pcap_pkthdr_to_tpacket_hdr(&phdr, &fm.tp_h);
+
+		// fuck
+		// hdr->tp_h.tp_sec, hdr->tp_h.tp_usec
+		xcache_process_packet(out, fm.tp_h.tp_len, fm.tp_h.tp_sec, fm.tp_h.tp_usec);
 
 		stats.tx_bytes += fm.tp_h.tp_len;
 		stats.tx_packets++;
@@ -883,11 +895,6 @@ void get_socket_stat(int *skipped, int *drops)
 				*/
 }
 
-// fucked
-void xinit(void);
-int xproc(void *, int);
-void xexit(void);
-
 static void enter_mode_rx_only_or_dump(struct mode *mode)
 {
 	int sock, irq, ifindex, fd = 0, ret;
@@ -978,7 +985,7 @@ try_file:
 	gettimeofday(&start, NULL);
 
 	// fucked
-	xinit();
+	xcache_init();
 
 	while (likely(sigint == 0)) {
 		while (user_may_pull_from_rx(rx_ring.frames[it].iov_base)) {
@@ -989,8 +996,8 @@ try_file:
 			// fucked
 			g_skipped = skipped;
 			g_sock = sock;
-			if (xproc(packet, hdr->tp_h.tp_len))
-				sigint = 1;
+			// hdr->tp_h.tp_sec, hdr->tp_h.tp_usec
+			xcache_process_packet(packet, hdr->tp_h.tp_len, hdr->tp_h.tp_sec, hdr->tp_h.tp_usec);
 
 			if (mode->packet_type != PACKET_ALL)
 				if (mode->packet_type != hdr->s_ll.sll_pkttype)

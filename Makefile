@@ -20,6 +20,9 @@ all-stop:
 run-netsniff: install
 	xcache-cap --in eth1 -s #-f /root/port80-2.bpf 
 
+xcache-inotify: inotify.c
+	gcc -o $@ $<
+
 run-thuner-pcap: install clear
 	xcache-cap --in /root/thunder.pcap -s #-f /root/port80-2.bpf 
 

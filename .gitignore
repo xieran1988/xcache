@@ -10,3 +10,5 @@ tests/
 netsniff-ng/
 lighttpd-1.4.31
 *.pyc
+xcache-inotify
+inotify

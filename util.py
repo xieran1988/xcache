@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re, os, hashlib, marshal, time, random, sys, traceback
+import re, os, hashlib, marshal, time, random, sys, traceback, datetime
 
 logf = open('/l/cgi2', 'a+')
 
@@ -10,6 +10,14 @@ def logw(s):
 
 def logend():
 	logw('')
+
+def logsha(sha, rs, re, clen, result):
+	try:
+		open('/d/JMP.%s'%sha, 'a+').write('%s\n' % (
+			'|'.join('jmp', repr(time.time()), rs, re, clen, result)
+			))
+	except:
+		pass
 
 def calc_http_range(ran, clen):
 	if ran is None:
@@ -75,7 +83,8 @@ def jmp(p, qry, ran, sha=None):
 		fname = os.listdir(root)[0]
 
 		if r:
-			logw('mine %s %s %s %d %d %d' % (p, ran, sha, rs, re, clen))
+			logw('mine %s %s %s %d %d %d' % (p, sha, ran, rs, re, clen))
+			logsha(sha, rs, re, clen, 'mine')
 #			logend()
 			return 'mine', \
 						 (root+'/'+fname, rs, re-rs+1, root, '/'+fname), \
@@ -85,6 +94,7 @@ def jmp(p, qry, ran, sha=None):
 		err = traceback.format_exc()
 	to = 'http:/%s?%s' % (p, qry.replace('yjwt08', 'yjwt09'))
 	logw('pass %s %s' % (to, sha))
+	logsha(sha, rs, re, clen, 'pass')
 #	logend()
 	return 'pass', to
 

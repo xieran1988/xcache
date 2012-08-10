@@ -89,6 +89,7 @@ static int opt_ziotimeout = 3;
 
 static void fin_conn(conn_t *c, char *s, char C)
 {
+	dump_iostat(c);
 	file_close(c);
 	if (c->f_iostat)
 		fclose(c->f_iostat);
@@ -130,7 +131,7 @@ static void timer(void)
 	get_socket_stat(&skipped, &drops);
 
 	double mb = 1024*1024;
-	fprintf(getenv("logstdout") ? stdout : logf, 
+	fprintf(logf, 
 					"info %d %d %d %d %d %d "
 					"A %d H %d io %.2fM max %d rsp %d drop %d/%d\n",
 				 	totio, maxconn, active, f_delsmall, f_got, (int)time(0),
@@ -267,7 +268,8 @@ void xcache_process_packet(uint8_t *p, int plen, int sec, int usec)
 
 void xcache_init(void)
 {
-//	if (getenv("notdelsmall"))
+	if (getenv("notdelsmall"))
+		opt_notdelsmall = 1;
 	logf = fopen("/l/cap", "w+");
 	setbuf(logf, NULL); 
 	setbuf(stdout, NULL); 

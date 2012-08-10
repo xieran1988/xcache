@@ -10,7 +10,16 @@ sub ll {
 		print "@_[0]\n"; 
 	}
 }
-sub fuck { ll "@_[0]\n"; exit; }
+sub fuck { 
+	ll "@_[0]\n"; 
+	if ($sha) {
+		($tm) = split / /, `tail -1 /c/I.$ptn`;
+		open F, ">>/d/ERR.$sha";
+		print F join("|", "err", $tm, $sha, $rs, $re, $clen, @_[0]) . "\n";
+		close F;
+	}
+	exit; 
+}
 
 $f = $ARGV[0];
 ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
@@ -31,22 +40,22 @@ $s = `head -c 4096 $f`;
 fuck "EE: url empty" if !$url;
 fuck "EE: no HTTP" if !$http;
 
+chomp($r = `xcache-urltest "$url"`);
+ll "DD: urltest $r";
+fuck "EE: urltest failed" if ($r !~ /^True/);
+
 chomp(($sha, $ext, $fname) = split /\s+/, `xcache-urlinfo "$url"`);
 ll "DD: url http://$host$url";
 ll "DD: crange_orig $crange";
 #ll "DD: ext $ext";
 ll sprintf "DD: clen %.2lfM", $clen/$mb;
-fuck "EE: clen==0" if ($clen == 0);
+fuck "EE: clen == 0" if ($clen == 0);
 #fuck "EE: clen $clen invalid" if ($clen < 0.5*$mb || $clen > 1024*$mb);
 #fuck "EE: size<clen size $size clen $clen" if ($size < $clen);
 
 $start = rindex($s, "\r\n\r\n")+4;
 fuck "EE: rnrn no found" if $start == -1;
 ll "DD: start $start size $size clen $clen";
-
-chomp($r = `xcache-urltest "$url"`);
-ll "DD: urltest $r";
-fuck "EE: urltest failed" if ($r !~ /^True/);
 
 if (!$crange) {
 	$crange = sprintf "0-%d/%d", $clen-1, $clen;
@@ -69,7 +78,8 @@ if ($ENV{do}) {
 	`echo ----- $rs-$re/$rclen $f hl=$start >> /d/L.$sha`;
 	`head -c $start $f >> /d/L.$sha`;
 	`touch /d/F.$sha`;
-	`xcache-combine-one $sha /d $f $start $rclen $rs $re >> /d/L.$sha`;
+	($tm) = split / /, `tail -1 /c/I.$ptn`;
+	`xcache-combine-one $sha /d $f $start $rclen $rs $re $tm >> /d/L.$sha`;
 }
 
 ll;

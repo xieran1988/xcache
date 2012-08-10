@@ -23,8 +23,17 @@ run-netsniff: install
 xcache-inotify: inotify.c
 	gcc -o $@ $<
 
-run-thuner-pcap: install clear
-	xcache-cap --in /root/thunder.pcap -s #-f /root/port80-2.bpf 
+run-thuner-pcap: stop-all install clear start-all
+	pkill xcache-cap
+	notdelsmall=1 xcache-cap --in /root/thunder.pcap -s #-f /root/port80-2.bpf 
+#	make stop-all
+
+ps:
+	ps aux | grep xcache
+
+test-inotify: xcache-inotify
+	touch /tmp/fuck
+	mv /tmp/fuck /c/shit 
 
 umount-ssd:
 	umount /dev/sdd

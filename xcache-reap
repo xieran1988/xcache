@@ -3,11 +3,13 @@
 `echo >> /l/L`;
 `echo ====== starts ======= >> /l/L`;
 `echo >> /l/L`;
-open F, "dir=/c xcache-inotify |";
+$pipe = "dir=/c xcache-inotify |";
+$pipe = "cd /c && ls [FGZ]* |" if $ENV{oneshot};
+open F, $pipe;
 while (<F>) {
+	print;
 	`do=1 xcache-reap-one /c/$_`;
-	`rm -rf $_`;
+	`rm -rf /c/$_`;
 }
 close F;
-sleep 1;
 
